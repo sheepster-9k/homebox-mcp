@@ -1,0 +1,17 @@
+---
+configuration:
+  homebox_url:
+    name: URL do Homebox
+    description: URL do servidor Homebox (ex: http://homeassistant.local:7745)
+  homebox_token:
+    name: Token API do Homebox
+    description: Token API do Homebox. Crie um em Homebox → Profile → API Tokens
+  mcp_auth_enabled:
+    name: Ativar Autenticação MCP
+    description: Quando ativado, clientes devem fornecer um Bearer token para acessar o endpoint MCP. Recomendado testar sem auth primeiro, depois ativar.
+  mcp_auth_token:
+    name: Token de Autenticação MCP
+    description: Token Bearer que clientes devem fornecer para acessar o endpoint MCP. Usado apenas quando a Autenticação MCP está ativada.
+  log_level:
+    name: Nível de Log
+    description: Nível de log para o servidor MCP

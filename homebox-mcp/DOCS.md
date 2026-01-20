@@ -1,232 +1,236 @@
 # Home Assistant Add-on: Homebox MCP Server
 
-## Sobre
+🇧🇷 [Versão em Português](DOCS-pt-br.md)
 
-Este addon expõe um servidor MCP (Model Context Protocol) para gerenciar o
-inventário do Homebox. Ele permite que assistentes de IA (como Claude) listem,
-criem, movam e busquem itens no seu inventário doméstico.
+## About
 
-## Instalação
+This addon exposes an MCP (Model Context Protocol) server for managing
+Homebox inventory. It allows AI assistants (like Claude) to list,
+create, move, and search items in your home inventory.
 
-1. Adicione este repositório às suas fontes de add-ons do Home Assistant
-2. Instale o add-on "Homebox MCP Server"
-3. Configure as credenciais do Homebox
-4. Inicie o add-on
+## Installation
 
-## Configuração
+1. Add this repository to your Home Assistant add-on sources
+2. Install the "Homebox MCP Server" add-on
+3. Configure the Homebox credentials
+4. Start the add-on
 
-### Opções
+## Configuration
 
-| Opção              | Descrição                                              | Obrigatório |
-| ------------------ | ------------------------------------------------------ | ----------- |
-| `homebox_url`      | URL do servidor Homebox                                | Sim         |
-| `homebox_token`    | API Token do Homebox                                   | Sim         |
-| `mcp_auth_enabled` | Ativar autenticação no endpoint MCP                    | Não         |
-| `mcp_auth_token`   | Token para autenticação (gere na página do addon)      | Não*        |
-| `log_level`        | Nível de log (trace, debug, info, warning, error)      | Não         |
+### Options
 
-*Obrigatório se `mcp_auth_enabled` estiver ativo
+| Option             | Description                                       | Required |
+| ------------------ | ------------------------------------------------- | -------- |
+| `homebox_url`      | Homebox server URL                                | Yes      |
+| `homebox_token`    | Homebox API Token                                 | Yes      |
+| `mcp_auth_enabled` | Enable authentication on MCP endpoint             | No       |
+| `mcp_auth_token`   | Token for authentication (generate in addon page) | No*      |
+| `log_level`        | Log level (trace, debug, info, warning, error)    | No       |
 
-### Exemplo de Configuração
+*Required if `mcp_auth_enabled` is enabled
+
+### Configuration Example
 
 ```yaml
 homebox_url: "http://dac2a4a9-homebox:7745"
-homebox_token: "SEU_TOKEN_API_HOMEBOX"
+homebox_token: "YOUR_HOMEBOX_API_TOKEN"
 mcp_auth_enabled: false
 mcp_auth_token: ""
 log_level: "info"
 ```
 
-### Criando o API Token do Homebox
+### Creating the Homebox API Token
 
-1. Acesse o Homebox
-2. Vá em **Profile** (ícone de usuário)
-3. Clique em **API Tokens**
-4. Clique em **Create Token**
-5. Copie o token gerado
+1. Access Homebox
+2. Go to **Profile** (user icon)
+3. Click **API Tokens**
+4. Click **Create Token**
+5. Copy the generated token
 
-## Autenticação MCP (OAuth)
+## MCP Authentication (OAuth)
 
-O addon suporta autenticação Bearer token opcional para proteger o endpoint MCP.
+The addon supports optional Bearer token authentication to protect the MCP endpoint.
 
-### Token Gerado Automaticamente
+### Token Generation
 
-Quando você ativa `mcp_auth_enabled: true`, o addon **gera automaticamente** um token seguro se você não definir um manualmente. O token é salvo e persiste entre reinicializações.
+When you enable `mcp_auth_enabled: true`, you need to generate and configure a secure token.
 
-### Configuração Simplificada
+### Simplified Setup
 
-1. **Primeiro**, teste a conexão com `mcp_auth_enabled: false`
-2. **Depois** que tudo funcionar:
-   - Ative `mcp_auth_enabled: true`
-   - Reinicie o addon
-   - O token será exibido no dashboard - copie-o para o Claude.ai
+1. **First**, test the connection with `mcp_auth_enabled: false`
+2. **After** everything works:
+   - Go to the addon web page
+   - Click "Generate Token" and copy it
+   - Configure `mcp_auth_token` in the addon settings
+   - Enable `mcp_auth_enabled: true`
+   - Restart the addon
 
-### Configuração Manual (Opcional)
+### Manual Setup (Optional)
 
-Se preferir definir seu próprio token:
+If you prefer to set your own token:
 
 ```yaml
 homebox_url: "http://dac2a4a9-homebox:7745"
-homebox_token: "SEU_TOKEN_API_HOMEBOX"
+homebox_token: "YOUR_HOMEBOX_API_TOKEN"
 mcp_auth_enabled: true
-mcp_auth_token: "MEU_TOKEN_PERSONALIZADO"  # opcional
+mcp_auth_token: "MY_CUSTOM_TOKEN"  # optional
 log_level: "info"
 ```
 
-### Configuração no Claude.ai
+### Claude.ai Configuration
 
-Quando a autenticação está ativada:
+When authentication is enabled:
 
-| Campo                        | Valor                                         |
-| ---------------------------- | --------------------------------------------- |
-| **URL do servidor**          | `https://seu-dominio.com/sse`                 |
-| **ID do Cliente OAuth**      | _Deixe em branco_                             |
-| **Segredo do Cliente OAuth** | Cole o token exibido no dashboard do addon    |
+| Field                    | Value                                       |
+| ------------------------ | ------------------------------------------- |
+| **Server URL**           | `https://your-domain.com/sse`               |
+| **OAuth Client ID**      | `mcp` (or any text)                         |
+| **OAuth Client Secret**  | Paste the token from the addon dashboard    |
 
-**Importante**: O token vai no campo **Segredo do Cliente OAuth**, não no ID do Cliente.
+**Important**: The token goes in the **OAuth Client Secret** field, not the Client ID.
 
-### Como Configurar o Token
+### How to Configure the Token
 
-1. Acesse a **página web do addon** (clique no painel lateral "Homebox MCP")
-2. Clique no botão **"🎲 Gerar Token"**
-3. Clique em **"📋 Copiar"**
-4. Nas **configurações do addon**:
-   - Ative `mcp_auth_enabled`
-   - Cole o token em `mcp_auth_token`
-   - Clique em **Salvar**
-5. No **Claude.ai**, cole o mesmo token no campo **"Segredo do Cliente OAuth"**
+1. Access the **addon web page** (click the "Homebox MCP" sidebar panel)
+2. Click the **"🎲 Generate Token"** button
+3. Click **"📋 Copy"**
+4. In the **addon settings**:
+   - Enable `mcp_auth_enabled`
+   - Paste the token in `mcp_auth_token`
+   - Click **Save**
+5. In **Claude.ai**, paste the same token in the **"OAuth Client Secret"** field
 
-### Addon Homebox Recomendado
+### Recommended Homebox Addon
 
-Este MCP foi desenvolvido para funcionar com o addon
+This MCP was developed to work with the
 [homebox-ingress-ha-addon](https://github.com/Oddiesea/homebox-ingress-ha-addon).
 
-Para instalar:
+To install:
 
-1. Adicione o repositório: `https://github.com/Oddiesea/homebox-ingress-ha-addon`
-2. Instale o addon **Homebox**
-3. Inicie e configure seu inventário
+1. Add the repository: `https://github.com/Oddiesea/homebox-ingress-ha-addon`
+2. Install the **Homebox** addon
+3. Start and configure your inventory
 
-### Encontrando a URL do Homebox
+### Finding the Homebox URL
 
-Se você tem o Homebox rodando como addon do Home Assistant:
+If you have Homebox running as a Home Assistant addon:
 
-1. Vá em **Configurações** → **Add-ons**
-2. Clique no addon Homebox
-3. Na aba "Informações", encontre o hostname interno
-4. A URL será algo como: `http://dac2a4a9-homebox:7745`
+1. Go to **Settings** → **Add-ons**
+2. Click on the Homebox addon
+3. In the "Info" tab, find the internal hostname
+4. The URL will be something like: `http://dac2a4a9-homebox:7745`
 
-Se o Homebox está rodando externamente:
+If Homebox is running externally:
 
-- Use o IP ou hostname do servidor: `http://192.168.1.100:7745`
+- Use the server IP or hostname: `http://192.168.1.100:7745`
 
-## Ferramentas MCP Disponíveis
+## Available MCP Tools
 
-### Localizações
+### Locations
 
-- **homebox_list_locations**: Lista todas as localizações do inventário
-- **homebox_get_location**: Obtém detalhes de uma localização
-- **homebox_create_location**: Cria uma nova localização
-- **homebox_update_location**: Atualiza uma localização
-- **homebox_delete_location**: Remove uma localização
+- **homebox_list_locations**: List all inventory locations
+- **homebox_get_location**: Get location details
+- **homebox_create_location**: Create a new location
+- **homebox_update_location**: Update a location
+- **homebox_delete_location**: Remove a location
 
-### Itens
+### Items
 
-- **homebox_list_items**: Lista itens com filtros opcionais
-- **homebox_get_item**: Obtém detalhes completos de um item
-- **homebox_search**: Busca flexível por itens
-- **homebox_create_item**: Cria um novo item
-- **homebox_update_item**: Atualiza campos de um item
-- **homebox_move_item**: Move um item para outra localização
-- **homebox_delete_item**: Remove um item
+- **homebox_list_items**: List items with optional filters
+- **homebox_get_item**: Get complete item details
+- **homebox_search**: Flexible search for items
+- **homebox_create_item**: Create a new item
+- **homebox_update_item**: Update item fields
+- **homebox_move_item**: Move an item to another location
+- **homebox_delete_item**: Remove an item
 
 ### Labels
 
-- **homebox_list_labels**: Lista todas as labels
-- **homebox_create_label**: Cria uma nova label
-- **homebox_update_label**: Atualiza uma label
-- **homebox_delete_label**: Remove uma label
+- **homebox_list_labels**: List all labels
+- **homebox_create_label**: Create a new label
+- **homebox_update_label**: Update a label
+- **homebox_delete_label**: Remove a label
 
-### Estatísticas
+### Statistics
 
-- **homebox_get_statistics**: Obtém estatísticas do inventário
+- **homebox_get_statistics**: Get inventory statistics
 
-## Conectando ao Servidor MCP
+## Connecting to the MCP Server
 
-O servidor MCP expõe um endpoint SSE (Server-Sent Events) na porta 8099.
+The MCP server exposes an SSE (Server-Sent Events) endpoint on port 8099.
 
-### Acesso Local (Rede Interna)
+### Local Access (Internal Network)
 
-Na mesma rede do Home Assistant:
+On the same network as Home Assistant:
 
 ```
 http://homeassistant.local:8099/sse
 ```
 
-Ou pelo IP:
+Or by IP:
 
 ```
 http://192.168.X.X:8099/sse
 ```
 
-### Acesso Externo via Cloudflare Tunnel (Recomendado)
+### External Access via Cloudflare Tunnel (Recommended)
 
-Para expor o MCP na internet de forma segura (necessário para Claude.ai web),
-use o [addon Cloudflared](https://github.com/homeassistant-apps/app-cloudflared).
+To expose the MCP securely on the internet (required for Claude.ai web),
+use the [Cloudflared addon](https://github.com/homeassistant-apps/app-cloudflared).
 
-#### 1. Instalar o addon Cloudflared
+#### 1. Install the Cloudflared addon
 
-1. Adicione o repositório ao Home Assistant:
+1. Add the repository to Home Assistant:
    ```
    https://github.com/homeassistant-apps/app-cloudflared
    ```
-2. Instale o addon **Cloudflared**
+2. Install the **Cloudflared** addon
 
-#### 2. Configurar no Cloudflare
+#### 2. Configure in Cloudflare
 
-1. Acesse [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
-2. Vá em **Networks** → **Tunnels** → **Create a tunnel**
-3. Escolha **Cloudflared** e dê um nome ao tunnel
-4. Copie o token gerado
+1. Access [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
+2. Go to **Networks** → **Tunnels** → **Create a tunnel**
+3. Choose **Cloudflared** and name the tunnel
+4. Copy the generated token
 
-#### 3. Configurar o addon Cloudflared
+#### 3. Configure the Cloudflared addon
 
-Configure o addon para expor a porta 8099 do MCP:
-
-```yaml
-additional_hosts:
-  - hostname: mcp.seudominio.com
-    service: http://homeassistant:8099
-```
-
-Ou se não tiver domínio próprio, use um subdomínio gratuito do Cloudflare:
+Configure the addon to expose MCP port 8099:
 
 ```yaml
 additional_hosts:
-  - hostname: mcp-homebox.seudominio.workers.dev
+  - hostname: mcp.yourdomain.com
     service: http://homeassistant:8099
 ```
 
-#### 4. URL Final para Claude.ai
+Or if you don't have your own domain, use a free Cloudflare subdomain:
 
-Após configurado, use no Claude.ai:
-
-```
-https://mcp.seudominio.com/sse
-```
-
-### Acesso via Ingress (alternativa)
-
-O Ingress do HA requer autenticação por sessão, o que dificulta acesso externo.
-Use apenas para acesso local via navegador:
-
-```
-https://seu-home-assistant/api/hassio_ingress/<ingress_token>/sse
+```yaml
+additional_hosts:
+  - hostname: mcp-homebox.yourdomain.workers.dev
+    service: http://homeassistant:8099
 ```
 
-### Configurando no Claude Desktop
+#### 4. Final URL for Claude.ai
 
-Adicione ao seu `claude_desktop_config.json`:
+After configured, use in Claude.ai:
+
+```
+https://mcp.yourdomain.com/sse
+```
+
+### Ingress Access (Alternative)
+
+HA Ingress requires session authentication, which makes external access difficult.
+Use only for local browser access:
+
+```
+https://your-home-assistant/api/hassio_ingress/<ingress_token>/sse
+```
+
+### Configuring in Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -237,32 +241,32 @@ Adicione ao seu `claude_desktop_config.json`:
   "mcpServers": {
     "homebox": {
       "command": "npx",
-      "args": ["mcp-remote", "https://mcp.seudominio.com/sse"]
+      "args": ["mcp-remote", "https://mcp.yourdomain.com/sse"]
     }
   }
 }
 ```
 
-### Configurando no Claude.ai Web (Experimental)
+### Configuring in Claude.ai Web (Experimental)
 
-1. Acesse as configurações de MCP no Claude.ai
-2. Adicione um novo servidor MCP
-3. Cole a URL: `https://mcp.seudominio.com/sse`
-4. OAuth: deixe desabilitado (não é necessário)
+1. Access the MCP settings in Claude.ai
+2. Add a new MCP server
+3. Paste the URL: `https://mcp.yourdomain.com/sse`
+4. OAuth: Configure Client ID as `mcp` and Client Secret as your token
 
-### Testando a Conexão
+### Testing the Connection
 
 #### Via terminal (curl)
 
 ```bash
-# Teste local
+# Local test
 curl -N "http://homeassistant.local:8099/sse"
 
-# Teste via Cloudflare Tunnel
-curl -N "https://mcp.seudominio.com/sse"
+# Test via Cloudflare Tunnel
+curl -N "https://mcp.yourdomain.com/sse"
 ```
 
-Se funcionar, você verá:
+If it works, you'll see:
 
 ```
 event: endpoint
@@ -272,75 +276,75 @@ data: /messages/?session_id=...
 #### Via MCP Inspector
 
 ```bash
-npx @anthropic/mcp-inspector https://mcp.seudominio.com/sse
+npx @anthropic/mcp-inspector https://mcp.yourdomain.com/sse
 ```
 
-## Exemplos de Uso
+## Usage Examples
 
-### Listar todos os itens
-
-```
-Usuário: Liste todos os itens do meu inventário
-Claude: [usa homebox_list_items]
-```
-
-### Criar um novo item
+### List all items
 
 ```
-Usuário: Adicione um "Furadeira Bosch" na garagem
-Claude: [usa homebox_list_locations para encontrar "Garagem"]
-Claude: [usa homebox_create_item com name="Furadeira Bosch" e location_id=...]
+User: List all items in my inventory
+Claude: [uses homebox_list_items]
 ```
 
-### Mover um item
+### Create a new item
 
 ```
-Usuário: Mova a furadeira para o escritório
-Claude: [usa homebox_search para encontrar "furadeira"]
-Claude: [usa homebox_list_locations para encontrar "Escritório"]
-Claude: [usa homebox_move_item]
+User: Add a "Bosch Drill" to the garage
+Claude: [uses homebox_list_locations to find "Garage"]
+Claude: [uses homebox_create_item with name="Bosch Drill" and location_id=...]
 ```
 
-### Buscar itens
+### Move an item
 
 ```
-Usuário: Onde estão minhas ferramentas?
-Claude: [usa homebox_search com query="ferramenta"]
+User: Move the drill to the office
+Claude: [uses homebox_search to find "drill"]
+Claude: [uses homebox_list_locations to find "Office"]
+Claude: [uses homebox_move_item]
 ```
 
-## Solução de Problemas
+### Search for items
 
-### Erro de Autenticação
+```
+User: Where are my tools?
+Claude: [uses homebox_search with query="tool"]
+```
 
-Verifique se:
+## Troubleshooting
 
-- O username e password estão corretos
-- O usuário existe no Homebox
-- O Homebox está acessível na URL configurada
+### Authentication Error
 
-### Erro de Conexão
+Check if:
 
-Verifique se:
+- The API token is correct
+- The token has the necessary permissions
+- Homebox is accessible at the configured URL
 
-- A URL do Homebox está correta
-- O addon Homebox está rodando
-- Não há firewall bloqueando a conexão
+### Connection Error
+
+Check if:
+
+- The Homebox URL is correct
+- The Homebox addon is running
+- There's no firewall blocking the connection
 
 ### Logs
 
-Para ver os logs do addon:
+To view addon logs:
 
-1. Vá em **Configurações** → **Add-ons** → **Homebox MCP Server**
-2. Clique na aba "Log"
+1. Go to **Settings** → **Add-ons** → **Homebox MCP Server**
+2. Click the "Log" tab
 
-Ou via linha de comando:
+Or via command line:
 
 ```bash
 ha addons logs homebox-mcp
 ```
 
-## Suporte
+## Support
 
-Para problemas ou sugestões:
+For issues or suggestions:
 
-- Abra uma issue no [repositório GitHub](https://github.com/oangelo/homebox-mcp)
+- Open an issue on the [GitHub repository](https://github.com/oangelo/homebox-mcp)

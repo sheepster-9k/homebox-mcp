@@ -3,159 +3,189 @@
 [![License][license-shield]](LICENSE.md)
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
-![Supports armv7 Architecture][armv7-shield]
 
-Servidor MCP (Model Context Protocol) para gerenciar o inventário do Homebox via assistentes de IA.
+MCP (Model Context Protocol) server for managing Homebox inventory via AI assistants.
 
-## Pré-requisitos
+🇧🇷 [Versão em Português](README-pt-br.md)
 
-Este addon foi desenvolvido para funcionar com o **Homebox** rodando no Home Assistant.
+## Prerequisites
 
-**Addon Homebox recomendado:** [homebox-ingress-ha-addon](https://github.com/Oddiesea/homebox-ingress-ha-addon)
+This addon was designed to work with **Homebox** running on Home Assistant.
 
-Para instalar o Homebox:
+**Recommended Homebox addon:** [homebox-ingress-ha-addon](https://github.com/Oddiesea/homebox-ingress-ha-addon)
 
-1. Adicione o repositório: `https://github.com/Oddiesea/homebox-ingress-ha-addon`
-2. Instale o addon **Homebox**
-3. Inicie e configure seu inventário
+To install Homebox:
 
-## Sobre
+1. Add the repository: `https://github.com/Oddiesea/homebox-ingress-ha-addon`
+2. Install the **Homebox** addon
+3. Start and configure your inventory
 
-Este addon expõe um servidor MCP que permite que assistentes de IA (como Claude)
-interajam com seu inventário do Homebox. Você pode:
+## About
 
-- 📦 Listar, criar e gerenciar itens
-- 📍 Organizar localizações hierárquicas
-- 🏷️ Categorizar com labels
-- 🔍 Buscar itens por nome ou descrição
-- 📊 Obter estatísticas do inventário
+This addon exposes an MCP server that allows AI assistants (like Claude) to
+interact with your Homebox inventory. You can:
 
-## Instalação
+- 📦 List, create, and manage items
+- 📍 Organize hierarchical locations
+- 🏷️ Categorize with labels
+- 🔍 Search items by name or description
+- 📊 Get inventory statistics
 
-### Adicionar Repositório
+## Installation
 
-1. No Home Assistant, vá em **Configurações** → **Add-ons** → **Loja de Add-ons**
-2. Clique no menu (⋮) → **Repositórios**
-3. Adicione: `https://github.com/oangelo/homebox-mcp`
-4. Clique em **Adicionar** → **Fechar**
+### Add Repository
 
-### Instalar Add-on
+1. In Home Assistant, go to **Settings** → **Add-ons** → **Add-on Store**
+2. Click the menu (⋮) → **Repositories**
+3. Add: `https://github.com/oangelo/homebox-mcp`
+4. Click **Add** → **Close**
 
-1. Procure por "Homebox MCP Server" na loja
-2. Clique em **Instalar**
-3. Configure as credenciais do Homebox
-4. Inicie o add-on
+### Install Add-on
 
-## Configuração
+1. Search for "Homebox MCP Server" in the store
+2. Click **Install**
+3. Configure the Homebox credentials
+4. Start the add-on
+
+## Configuration
 
 ```yaml
 homebox_url: "http://homeassistant.local:7745"
-homebox_username: "seu_usuario"
-homebox_password: "sua_senha"
+homebox_token: "YOUR_HOMEBOX_API_TOKEN"
+mcp_auth_enabled: false
+mcp_auth_token: ""
 log_level: "info"
 ```
 
-## Acesso Externo via Cloudflare Tunnel
+### Creating the Homebox API Token
 
-Para usar com Claude.ai web ou acessar externamente, recomendamos usar o
-[addon Cloudflared](https://github.com/homeassistant-apps/app-cloudflared)
-para criar um tunnel seguro.
+1. Access Homebox
+2. Go to **Profile** (user icon)
+3. Click **API Tokens**
+4. Click **Create Token**
+5. Copy the generated token
 
-### Configurar Cloudflared
+## External Access via Cloudflare Tunnel
 
-1. Instale o addon [Cloudflared](https://github.com/homeassistant-apps/app-cloudflared)
-2. Configure o tunnel para expor a porta 8099:
+To use with Claude.ai web or access externally, we recommend using the
+[Cloudflared addon](https://github.com/homeassistant-apps/app-cloudflared)
+to create a secure tunnel.
+
+### Configure Cloudflared
+
+1. Install the [Cloudflared addon](https://github.com/homeassistant-apps/app-cloudflared)
+2. Configure the tunnel to expose port 8099:
 
 ```yaml
 additional_hosts:
-  - hostname: mcp.seudominio.com
+  - hostname: mcp.yourdomain.com
     service: http://homeassistant:8099
 ```
 
-3. Use a URL no Claude.ai: `https://mcp.seudominio.com/sse`
+3. Use the URL in Claude.ai: `https://mcp.yourdomain.com/sse`
 
-### Acesso Local
+### Local Access
 
-Na rede local, acesse diretamente:
+On the local network, access directly:
 
 ```
 http://homeassistant.local:8099/sse
 ```
 
-## Uso com Claude
+## MCP Authentication (Optional)
+
+The addon supports optional Bearer token authentication to protect the MCP endpoint.
+
+### Configure Token
+
+1. Access the **addon web page** (click "Homebox MCP" in the sidebar)
+2. Click the **"🎲 Generate Token"** button
+3. Click **"📋 Copy"**
+4. In the **addon settings**:
+   - Enable `mcp_auth_enabled`
+   - Paste the token in `mcp_auth_token`
+   - Click **Save**
+
+### Configure in Claude.ai
+
+| Field                  | Value                                          |
+| ---------------------- | ---------------------------------------------- |
+| **Server URL**         | `https://your-domain.com/sse`                  |
+| **OAuth Client ID**    | `mcp` (or any text)                            |
+| **OAuth Client Secret**| Paste the token generated in the addon         |
+
+## Using with Claude
 
 ### Claude.ai Web (Experimental)
 
-1. Acesse as configurações de MCP no Claude.ai
-2. Adicione a URL: `https://mcp.seudominio.com/sse`
-3. OAuth: não é necessário
+1. Access the MCP settings in Claude.ai
+2. Add the URL: `https://mcp.yourdomain.com/sse`
+3. Configure OAuth as shown above (optional but recommended)
 
 ### Claude Desktop
 
-Adicione ao seu `claude_desktop_config.json`:
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "homebox": {
       "command": "npx",
-      "args": ["mcp-remote", "https://mcp.seudominio.com/sse"]
+      "args": ["mcp-remote", "https://mcp.yourdomain.com/sse"]
     }
   }
 }
 ```
 
-### Exemplos de Interação
+### Interaction Examples
 
 ```
-Você: Liste todos os itens na garagem
-Claude: [Lista itens filtrados por localização]
+You: List all items in the garage
+Claude: [Lists items filtered by location]
 
-Você: Adicione uma "Furadeira Bosch" no armário de ferramentas
-Claude: [Cria item na localização especificada]
+You: Add a "Bosch Drill" to the tools cabinet
+Claude: [Creates item in the specified location]
 
-Você: Onde está minha câmera?
-Claude: [Busca e retorna localização do item]
+You: Where is my camera?
+Claude: [Searches and returns item location]
 ```
 
-## Ferramentas MCP
+## MCP Tools
 
-| Ferramenta               | Descrição                   |
-| ------------------------ | --------------------------- |
-| `homebox_list_locations` | Lista todas as localizações |
-| `homebox_list_items`     | Lista itens com filtros     |
-| `homebox_search`         | Busca por itens             |
-| `homebox_create_item`    | Cria novo item              |
-| `homebox_move_item`      | Move item                   |
-| `homebox_list_labels`    | Lista labels                |
-| `homebox_get_statistics` | Estatísticas                |
+| Tool                     | Description               |
+| ------------------------ | ------------------------- |
+| `homebox_list_locations` | List all locations        |
+| `homebox_list_items`     | List items with filters   |
+| `homebox_search`         | Search for items          |
+| `homebox_create_item`    | Create new item           |
+| `homebox_move_item`      | Move item                 |
+| `homebox_list_labels`    | List labels               |
+| `homebox_get_statistics` | Get statistics            |
 
-[Documentação completa](homebox-mcp/DOCS.md)
+[Full Documentation](homebox-mcp/DOCS.md)
 
-## Desenvolvimento Local
+## Local Development
 
 ```bash
-# Instalar dependências
+# Install dependencies
 pip install -r requirements.txt
 
-# Configurar variáveis de ambiente
+# Set environment variables
 export HOMEBOX_URL="http://localhost:7745"
-export HOMEBOX_USERNAME="admin@example.com"
-export HOMEBOX_PASSWORD="password"
+export HOMEBOX_TOKEN="your-api-token"
 
-# Executar servidor
+# Run server
 cd homebox-mcp/app
 python server.py
 
-# Testar com MCP Inspector
+# Test with MCP Inspector
 npx @anthropic/mcp-inspector http://localhost:8099/sse
 ```
 
-## Licença
+## License
 
-MIT License - veja [LICENSE.md](LICENSE.md)
+MIT License - see [LICENSE.md](LICENSE.md)
 
 [license-shield]: https://img.shields.io/github/license/oangelo/homebox-mcp.svg
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
-[armv7-shield]: https://img.shields.io/badge/armv7-yes-green.svg

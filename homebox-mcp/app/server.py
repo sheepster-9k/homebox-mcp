@@ -114,37 +114,37 @@ server_start_time = datetime.now()
 
 @mcp.resource("homebox://info")
 async def get_server_info() -> str:
-    """Informações sobre o servidor MCP do Homebox."""
+    """Information about the Homebox MCP server."""
     return f"""# Homebox MCP Server
 
-Servidor MCP conectado ao Homebox em: {config.homebox_url}
+MCP Server connected to Homebox at: {config.homebox_url}
 
-## Ferramentas Disponíveis
+## Available Tools
 
-### Localizações
-- homebox_list_locations - Lista todas as localizações
-- homebox_get_location - Detalhes de uma localização
-- homebox_create_location - Cria nova localização
-- homebox_update_location - Atualiza localização
-- homebox_delete_location - Remove localização
+### Locations
+- homebox_list_locations - List all locations
+- homebox_get_location - Get location details
+- homebox_create_location - Create new location
+- homebox_update_location - Update location
+- homebox_delete_location - Remove location
 
-### Itens
-- homebox_list_items - Lista itens (com filtros)
-- homebox_get_item - Detalhes de um item
-- homebox_search - Busca por itens
-- homebox_create_item - Cria novo item
-- homebox_update_item - Atualiza item
-- homebox_move_item - Move item para outra localização
+### Items
+- homebox_list_items - List items (with filters)
+- homebox_get_item - Get item details
+- homebox_search - Search for items
+- homebox_create_item - Create new item
+- homebox_update_item - Update item
+- homebox_move_item - Move item to another location
 - homebox_delete_item - Remove item
 
 ### Labels
-- homebox_list_labels - Lista todas as labels
-- homebox_create_label - Cria nova label
-- homebox_update_label - Atualiza label
+- homebox_list_labels - List all labels
+- homebox_create_label - Create new label
+- homebox_update_label - Update label
 - homebox_delete_label - Remove label
 
-### Estatísticas
-- homebox_get_statistics - Estatísticas do inventário
+### Statistics
+- homebox_get_statistics - Inventory statistics
 """
 
 
@@ -186,14 +186,14 @@ async def homepage(request):
     """Serve the status dashboard."""
     status = await get_status_data()
 
-    connection_status = "✅ Conectado" if status["homebox_connected"] else "❌ Desconectado"
+    connection_status = "✅ Connected" if status["homebox_connected"] else "❌ Disconnected"
     connection_class = "connected" if status["homebox_connected"] else "disconnected"
     error_html = ""
     if status["homebox_error"]:
-        error_html = f'<p class="error">Erro: {status["homebox_error"]}</p>'
+        error_html = f'<p class="error">Error: {status["homebox_error"]}</p>'
 
     html = f"""<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -416,12 +416,12 @@ async def homepage(request):
     <div class="container">
         <header>
             <h1>📦 Homebox MCP Server</h1>
-            <p class="subtitle">Model Context Protocol para gerenciamento de inventário</p>
+            <p class="subtitle">Model Context Protocol for inventory management</p>
         </header>
 
         <div class="cards">
             <div class="card status-card">
-                <div class="card-title">Status da Conexão</div>
+                <div class="card-title">Connection Status</div>
                 <div class="card-value {connection_class}">{connection_status}</div>
                 {error_html}
                 <div class="status-grid">
@@ -430,19 +430,19 @@ async def homepage(request):
                         <span class="status-value">{status["homebox_url"]}</span>
                     </div>
                     <div class="status-item">
-                        <span class="status-label">Uptime do Servidor</span>
+                        <span class="status-label">Server Uptime</span>
                         <span class="status-value">{status["server_uptime"]}</span>
                     </div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-title">📍 Localizações</div>
+                <div class="card-title">📍 Locations</div>
                 <div class="card-value">{status["locations_count"]}</div>
             </div>
 
             <div class="card">
-                <div class="card-title">📦 Itens</div>
+                <div class="card-title">📦 Items</div>
                 <div class="card-value">{status["items_count"]}</div>
             </div>
 
@@ -453,55 +453,55 @@ async def homepage(request):
         </div>
 
         <div class="endpoint-box">
-            <h3>🔌 Configuração do MCP</h3>
+            <h3>🔌 MCP Configuration</h3>
             
             <div class="endpoint-section">
-                <div class="endpoint-label">🔐 Autenticação MCP</div>
+                <div class="endpoint-label">🔐 MCP Authentication</div>
                 <div class="endpoint-url" style="color: {'#00ff88' if status['mcp_auth_enabled'] else '#ff6b7a'};">
-                    {'🔒 ATIVADA' if status['mcp_auth_enabled'] else '🔓 DESATIVADA - Endpoint aberto'}
+                    {'🔒 ENABLED' if status['mcp_auth_enabled'] else '🔓 DISABLED - Endpoint is open'}
                 </div>
             </div>
             
             <div class="info-box" style="margin-top: 20px; background: rgba(0, 217, 255, 0.1); border-color: rgba(0, 217, 255, 0.3);">
-                <strong>🎲 Gerador de Token</strong>
-                <p style="margin-top: 10px; color: #8892b0;">Gere um token seguro e copie para as configurações do addon:</p>
+                <strong>🎲 Token Generator</strong>
+                <p style="margin-top: 10px; color: #8892b0;">Generate a secure token and copy to addon settings:</p>
                 <div style="margin: 15px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <button onclick="generateToken()" style="background: #00d9ff; color: #1a1a2e; border: none; border-radius: 8px; padding: 12px 20px; cursor: pointer; font-weight: bold;">🎲 Gerar Token</button>
-                    <input type="text" id="generatedToken" readonly placeholder="Clique em Gerar" style="flex: 1; min-width: 200px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 12px; color: #00ff88; font-family: monospace;">
-                    <button onclick="copyToken()" style="background: rgba(255,255,255,0.1); color: #e8e8e8; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 12px 20px; cursor: pointer;">📋 Copiar</button>
+                    <button onclick="generateToken()" style="background: #00d9ff; color: #1a1a2e; border: none; border-radius: 8px; padding: 12px 20px; cursor: pointer; font-weight: bold;">🎲 Generate Token</button>
+                    <input type="text" id="generatedToken" readonly placeholder="Click Generate" style="flex: 1; min-width: 200px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 12px; color: #00ff88; font-family: monospace;">
+                    <button onclick="copyToken()" style="background: rgba(255,255,255,0.1); color: #e8e8e8; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 12px 20px; cursor: pointer;">📋 Copy</button>
                 </div>
-                <p style="color: #8892b0; font-size: 0.9rem;">Após copiar, cole nas <strong>configurações do addon</strong> → campo <code>mcp_auth_token</code></p>
+                <p style="color: #8892b0; font-size: 0.9rem;">After copying, paste in <strong>addon settings</strong> → <code>mcp_auth_token</code> field</p>
             </div>
             
-            {'<div class="info-box" style="margin-top: 15px; background: rgba(0, 255, 136, 0.1); border-color: rgba(0, 255, 136, 0.3);"><strong>✅ Token configurado</strong><p style="margin-top: 8px; color: #8892b0;">Use o mesmo token no Claude.ai → campo <strong>Segredo do Cliente OAuth</strong></p></div>' if status['mcp_auth_enabled'] and config.mcp_auth_token else ('<div class="info-box" style="margin-top: 15px; background: rgba(255, 200, 50, 0.1); border-color: rgba(255, 200, 50, 0.3);"><strong>⚠️ Token não configurado</strong><p style="margin-top: 8px; color: #8892b0;">Gere um token acima e configure em <code>mcp_auth_token</code> nas opções do addon.</p></div>' if status['mcp_auth_enabled'] else '<div class="info-box" style="margin-top: 15px; background: rgba(255, 107, 122, 0.1); border-color: rgba(255, 107, 122, 0.3);"><strong>⚠️ Autenticação desativada</strong><p style="margin-top: 8px; color: #8892b0;">Recomendado: ative <code>mcp_auth_enabled</code> e configure um token.</p></div>')}
+            {'<div class="info-box" style="margin-top: 15px; background: rgba(0, 255, 136, 0.1); border-color: rgba(0, 255, 136, 0.3);"><strong>✅ Token configured</strong><p style="margin-top: 8px; color: #8892b0;">Use the same token in Claude.ai → <strong>OAuth Client Secret</strong> field</p></div>' if status['mcp_auth_enabled'] and config.mcp_auth_token else ('<div class="info-box" style="margin-top: 15px; background: rgba(255, 200, 50, 0.1); border-color: rgba(255, 200, 50, 0.3);"><strong>⚠️ Token not configured</strong><p style="margin-top: 8px; color: #8892b0;">Generate a token above and configure in <code>mcp_auth_token</code> in addon options.</p></div>' if status['mcp_auth_enabled'] else '<div class="info-box" style="margin-top: 15px; background: rgba(255, 107, 122, 0.1); border-color: rgba(255, 107, 122, 0.3);"><strong>⚠️ Authentication disabled</strong><p style="margin-top: 8px; color: #8892b0;">Recommended: enable <code>mcp_auth_enabled</code> and configure a token.</p></div>')}
             
             <div class="endpoint-section" style="margin-top: 20px;">
-                <div class="endpoint-label">📍 Endereço Interno (para configurar Cloudflare Tunnel)</div>
+                <div class="endpoint-label">📍 Internal Address (for Cloudflare Tunnel configuration)</div>
                 <div class="endpoint-url">http://homeassistant:8099</div>
                 <p class="endpoint-hint">
-                    Use este endereço no Cloudflare Tunnel → Additional hosts → Service
+                    Use this address in Cloudflare Tunnel → Additional hosts → Service
                 </p>
             </div>
             
             <div class="endpoint-section" style="margin-top: 20px;">
-                <div class="endpoint-label">🌐 Endereço para Claude.ai</div>
-                <div class="endpoint-url">https://seu-dominio.com<span style="color: #00ff88;">/sse</span></div>
+                <div class="endpoint-label">🌐 Address for Claude.ai</div>
+                <div class="endpoint-url">https://your-domain.com<span style="color: #00ff88;">/sse</span></div>
                 <p class="endpoint-hint">
-                    Após configurar o túnel, use o endereço do seu domínio + <strong>/sse</strong> no Claude.ai
+                    After configuring the tunnel, use your domain address + <strong>/sse</strong> in Claude.ai
                 </p>
             </div>
             
             <div class="info-box" style="margin-top: 20px;">
-                <strong>📋 Passos para configurar:</strong>
+                <strong>📋 Setup steps:</strong>
                 <ol style="margin: 10px 0 0 20px; color: #8892b0;">
-                    <li>Clique em <strong>🎲 Gerar Token</strong> acima e copie</li>
-                    <li>Nas configurações do addon: ative <code>mcp_auth_enabled</code> e cole o token em <code>mcp_auth_token</code></li>
+                    <li>Click <strong>🎲 Generate Token</strong> above and copy</li>
+                    <li>In addon settings: enable <code>mcp_auth_enabled</code> and paste the token in <code>mcp_auth_token</code></li>
                     <li>Configure Cloudflare Tunnel → <code>http://homeassistant:8099</code></li>
-                    <li>No Claude.ai:
+                    <li>In Claude.ai:
                         <ul style="margin-top: 5px;">
-                            <li>URL: <code>https://seu-dominio.com/sse</code></li>
-                            <li>ID do Cliente OAuth: <code>mcp</code> (ou qualquer texto)</li>
-                            <li>Segredo do Cliente OAuth: <strong>cole o token</strong></li>
+                            <li>URL: <code>https://your-domain.com/sse</code></li>
+                            <li>OAuth Client ID: <code>mcp</code> (or any text)</li>
+                            <li>OAuth Client Secret: <strong>paste the token</strong></li>
                         </ul>
                     </li>
                 </ol>
@@ -509,39 +509,39 @@ async def homepage(request):
         </div>
 
         <div class="tools-section">
-            <h3>🛠️ Ferramentas Disponíveis</h3>
+            <h3>🛠️ Available Tools</h3>
             <div class="tools-grid">
                 <div class="tool-item">
                     <div class="tool-name">homebox_list_locations</div>
-                    <div class="tool-desc">Lista todas as localizações</div>
+                    <div class="tool-desc">List all locations</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_list_items</div>
-                    <div class="tool-desc">Lista itens com filtros</div>
+                    <div class="tool-desc">List items with filters</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_search</div>
-                    <div class="tool-desc">Busca por itens</div>
+                    <div class="tool-desc">Search for items</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_create_item</div>
-                    <div class="tool-desc">Cria novo item</div>
+                    <div class="tool-desc">Create new item</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_move_item</div>
-                    <div class="tool-desc">Move item para outra localização</div>
+                    <div class="tool-desc">Move item to another location</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_list_labels</div>
-                    <div class="tool-desc">Lista todas as labels</div>
+                    <div class="tool-desc">List all labels</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_create_location</div>
-                    <div class="tool-desc">Cria nova localização</div>
+                    <div class="tool-desc">Create new location</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_get_statistics</div>
-                    <div class="tool-desc">Estatísticas do inventário</div>
+                    <div class="tool-desc">Inventory statistics</div>
                 </div>
             </div>
         </div>
@@ -549,12 +549,12 @@ async def homepage(request):
         <footer>
             <p>
                 <a href="https://github.com/oangelo/homebox-mcp" target="_blank">GitHub</a> · 
-                Desenvolvido para uso com <a href="https://github.com/Oddiesea/homebox-ingress-ha-addon" target="_blank">Homebox</a>
+                Designed for use with <a href="https://github.com/Oddiesea/homebox-ingress-ha-addon" target="_blank">Homebox</a>
             </p>
         </footer>
     </div>
 
-    <button class="refresh-btn" onclick="location.reload()" title="Atualizar">↻</button>
+    <button class="refresh-btn" onclick="location.reload()" title="Refresh">↻</button>
 
     <script>
         // Auto-refresh every 60 seconds
@@ -572,11 +572,11 @@ async def homepage(request):
         function copyToken() {{
             const input = document.getElementById('generatedToken');
             if (!input.value) {{
-                alert('Gere um token primeiro!');
+                alert('Generate a token first!');
                 return;
             }}
             navigator.clipboard.writeText(input.value).then(() => {{
-                alert('Token copiado!\\n\\nAgora cole nas configurações do addon:\\n→ mcp_auth_token\\n\\nE também no Claude.ai:\\n→ Segredo do Cliente OAuth');
+                alert('Token copied!\\n\\nNow paste in addon settings:\\n→ mcp_auth_token\\n\\nAnd also in Claude.ai:\\n→ OAuth Client Secret');
             }});
         }}
     </script>
