@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.9] - 2026-01-20
+## [0.2.0] - 2026-01-26
+
+### Added
+
+- **New tool**: `homebox_get_location_tree` - Returns complete location hierarchy tree
+  - Addresses [Issue #1](https://github.com/oangelo/homebox-mcp/issues/1)
+  - Fetches all locations with parent/children relationships
+  - Returns nested tree structure for easy hierarchy visualization
+- All tool docstrings translated to English
 
 ### Changed
 
@@ -13,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dashboard UI now in English
 - Documentation in English with Portuguese version available
 - Added `README-pt-br.md` and `DOCS-pt-br.md` for Portuguese speakers
+- `homebox_list_locations` now documents Homebox API limitation (parent_id always null)
+
+### Fixed
+
+- Documented workaround for Homebox API not returning parent_id in list endpoint
 
 ## [0.1.8] - 2026-01-10
 

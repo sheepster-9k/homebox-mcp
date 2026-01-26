@@ -21,14 +21,17 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
 
     @mcp.tool()
     async def homebox_list_locations() -> list[dict[str, Any]]:
-        """Lista todas as localizações do inventário.
+        """List all locations in the inventory.
 
-        Retorna a lista completa de localizações cadastradas no Homebox,
-        incluindo informações de hierarquia (parent_id) para localizações
-        aninhadas.
+        Returns the complete list of locations registered in Homebox.
+        
+        NOTE: Due to Homebox API limitations, this endpoint does not return
+        hierarchy information (parent_id is always null). Use 
+        homebox_get_location_tree() for full hierarchy or homebox_get_location()
+        for individual location details including parent info.
 
         Returns:
-            Lista de localizações com id, name, description e parent_id.
+            List of locations with id, name, description, and item_count.
         """
         locations = await client.get_locations()
         return [
@@ -36,21 +39,79 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
                 "id": loc.get("id"),
                 "name": loc.get("name"),
                 "description": loc.get("description", ""),
-                "parent_id": loc.get("parent", {}).get("id") if loc.get("parent") else None,
                 "item_count": loc.get("itemCount", 0),
             }
             for loc in locations
         ]
 
     @mcp.tool()
-    async def homebox_get_location(location_id: str) -> dict[str, Any]:
-        """Obtém detalhes de uma localização específica.
+    async def homebox_get_location_tree() -> list[dict[str, Any]]:
+        """Get the complete location hierarchy tree.
 
-        Args:
-            location_id: ID (UUID) da localização.
+        This tool fetches all locations and enriches them with parent/children
+        relationships by making additional API calls. Use this when you need
+        to understand the full location hierarchy.
 
         Returns:
-            Detalhes completos da localização.
+            List of root locations (no parent), each with nested children array.
+            Each location contains: id, name, description, item_count, children[].
+        """
+        # First get all locations
+        locations = await client.get_locations()
+        
+        # Build a map of location details with parent info
+        location_details = {}
+        for loc in locations:
+            # Fetch full details for each location to get parent info
+            details = await client.get_location(loc.get("id"))
+            parent_id = details.get("parent", {}).get("id") if details.get("parent") else None
+            location_details[loc.get("id")] = {
+                "id": loc.get("id"),
+                "name": loc.get("name"),
+                "description": loc.get("description", ""),
+                "item_count": loc.get("itemCount", 0),
+                "parent_id": parent_id,
+                "children": [],
+            }
+        
+        # Build the tree structure
+        root_locations = []
+        for loc_id, loc in location_details.items():
+            parent_id = loc["parent_id"]
+            if parent_id and parent_id in location_details:
+                # Add as child to parent
+                location_details[parent_id]["children"].append(loc)
+            else:
+                # This is a root location
+                root_locations.append(loc)
+        
+        # Remove parent_id from output (it's redundant in tree structure)
+        def clean_tree(locations):
+            for loc in locations:
+                del loc["parent_id"]
+                if loc["children"]:
+                    clean_tree(loc["children"])
+            return locations
+        
+        return clean_tree(root_locations)
+
+    @mcp.tool()
+    async def homebox_get_location(location_id: str) -> dict[str, Any]:
+        """Get details of a specific location including hierarchy info.
+
+        This endpoint returns full location details INCLUDING parent and
+        children relationships, unlike list_locations which doesn't include
+        hierarchy information.
+
+        Args:
+            location_id: Location ID (UUID).
+
+        Returns:
+            Complete location details including:
+            - id, name, description
+            - parent: {id, name} if this location has a parent
+            - children: [{id, name}] list of child locations
+            - items: list of items in this location
         """
         return await client.get_location(location_id)
 
@@ -60,19 +121,19 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         description: str | None = None,
         parent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Cria uma nova localização no inventário.
+        """Create a new location in the inventory.
 
-        Use esta ferramenta para criar novos locais onde itens podem ser
-        armazenados, como cômodos, armários, gavetas, etc.
+        Use this tool to create new places where items can be stored,
+        such as rooms, cabinets, drawers, etc.
 
         Args:
-            name: Nome da localização (obrigatório).
-            description: Descrição opcional da localização.
-            parent_id: ID da localização pai para criar hierarquia.
-                       Por exemplo, "Gaveta 1" pode ser filha de "Cômoda".
+            name: Location name (required).
+            description: Optional location description.
+            parent_id: Parent location ID to create hierarchy.
+                       For example, "Drawer 1" can be a child of "Desk".
 
         Returns:
-            Localização criada com todos os campos.
+            Created location with all fields.
         """
         return await client.create_location(name, description, parent_id)
 
@@ -83,33 +144,33 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         description: str | None = None,
         parent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Atualiza uma localização existente.
+        """Update an existing location.
 
         Args:
-            location_id: ID (UUID) da localização a atualizar.
-            name: Novo nome (opcional).
-            description: Nova descrição (opcional).
-            parent_id: Novo ID da localização pai (opcional).
+            location_id: Location ID (UUID) to update.
+            name: New name (optional).
+            description: New description (optional).
+            parent_id: New parent location ID (optional).
 
         Returns:
-            Localização atualizada.
+            Updated location.
         """
         return await client.update_location(location_id, name, description, parent_id)
 
     @mcp.tool()
     async def homebox_delete_location(location_id: str) -> str:
-        """Remove uma localização do inventário.
+        """Remove a location from the inventory.
 
-        ATENÇÃO: A localização não pode ter itens ou sub-localizações.
+        WARNING: The location must not have items or sub-locations.
 
         Args:
-            location_id: ID (UUID) da localização a remover.
+            location_id: Location ID (UUID) to remove.
 
         Returns:
-            Mensagem de confirmação.
+            Confirmation message.
         """
         await client.delete_location(location_id)
-        return f"Localização {location_id} removida com sucesso."
+        return f"Location {location_id} successfully removed."
 
     # =========================================================================
     # Item Tools
@@ -121,18 +182,18 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         label_id: str | None = None,
         search: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Lista itens do inventário com filtros opcionais.
+        """List inventory items with optional filters.
 
-        Use esta ferramenta para obter uma lista de itens. Você pode filtrar
-        por localização, label ou fazer uma busca textual.
+        Use this tool to get a list of items. You can filter by location,
+        label, or perform a text search.
 
         Args:
-            location_id: Filtrar por localização específica (UUID).
-            label_id: Filtrar por label específica (UUID).
-            search: Termo de busca no nome/descrição dos itens.
+            location_id: Filter by specific location (UUID).
+            label_id: Filter by specific label (UUID).
+            search: Search term for item name/description.
 
         Returns:
-            Lista de itens com id, name, location, quantity, etc.
+            List of items with id, name, location, quantity, etc.
         """
         items = await client.get_items(location_id, label_id, search)
         return [
@@ -157,30 +218,30 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
 
     @mcp.tool()
     async def homebox_get_item(item_id: str) -> dict[str, Any]:
-        """Obtém detalhes completos de um item específico.
+        """Get complete details of a specific item.
 
-        Use esta ferramenta quando precisar de todas as informações de um
-        item, incluindo campos como número de série, fabricante, preço, etc.
+        Use this tool when you need all information about an item,
+        including fields like serial number, manufacturer, price, etc.
 
         Args:
-            item_id: ID (UUID) do item.
+            item_id: Item ID (UUID).
 
         Returns:
-            Detalhes completos do item incluindo todos os campos.
+            Complete item details including all fields.
         """
         return await client.get_item(item_id)
 
     @mcp.tool()
     async def homebox_search(query: str) -> list[dict[str, Any]]:
-        """Busca flexível por itens no inventário.
+        """Flexible search for items in the inventory.
 
-        Realiza uma busca textual em nomes e descrições de itens.
+        Performs a text search on item names and descriptions.
 
         Args:
-            query: Termo de busca (nome, descrição, etc).
+            query: Search term (name, description, etc).
 
         Returns:
-            Lista de itens que correspondem à busca.
+            List of items matching the search.
         """
         items = await client.get_items(search=query)
         return [
@@ -205,19 +266,19 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         quantity: int = 1,
         labels: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Cria um novo item no inventário.
+        """Create a new item in the inventory.
 
-        Use esta ferramenta para adicionar novos itens ao inventário.
+        Use this tool to add new items to the inventory.
 
         Args:
-            name: Nome do item (obrigatório).
-            location_id: ID (UUID) da localização onde o item será armazenado.
-            description: Descrição do item (opcional).
-            quantity: Quantidade do item (padrão: 1).
-            labels: Lista de IDs (UUIDs) de labels a associar ao item.
+            name: Item name (required).
+            location_id: Location ID (UUID) where the item will be stored.
+            description: Item description (optional).
+            quantity: Item quantity (default: 1).
+            labels: List of label IDs (UUIDs) to associate with the item.
 
         Returns:
-            Item criado com todos os campos.
+            Created item with all fields.
         """
         return await client.create_item(name, location_id, description, quantity, labels)
 
@@ -238,29 +299,29 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         purchase_price: float | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
-        """Atualiza campos de um item existente.
+        """Update fields of an existing item.
 
-        Use esta ferramenta para modificar qualquer campo de um item.
-        Apenas os campos fornecidos serão atualizados.
+        Use this tool to modify any field of an item.
+        Only the provided fields will be updated.
 
         Args:
-            item_id: ID (UUID) do item a atualizar (obrigatório).
-            name: Novo nome do item.
-            description: Nova descrição.
-            quantity: Nova quantidade.
-            location_id: Novo ID da localização (move o item).
-            labels: Nova lista de IDs de labels.
-            insured: Status de seguro (true/false).
-            archived: Status de arquivado (true/false).
-            asset_id: ID do ativo/patrimônio.
-            serial_number: Número de série.
-            model_number: Número do modelo.
-            manufacturer: Fabricante.
-            purchase_price: Preço de compra.
-            notes: Notas/observações.
+            item_id: Item ID (UUID) to update (required).
+            name: New item name.
+            description: New description.
+            quantity: New quantity.
+            location_id: New location ID (moves the item).
+            labels: New list of label IDs.
+            insured: Insurance status (true/false).
+            archived: Archived status (true/false).
+            asset_id: Asset/property ID.
+            serial_number: Serial number.
+            model_number: Model number.
+            manufacturer: Manufacturer.
+            purchase_price: Purchase price.
+            notes: Notes/observations.
 
         Returns:
-            Item atualizado com todos os campos.
+            Updated item with all fields.
         """
         return await client.update_item(
             item_id=item_id,
@@ -281,33 +342,33 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
 
     @mcp.tool()
     async def homebox_move_item(item_id: str, location_id: str) -> dict[str, Any]:
-        """Move um item para outra localização.
+        """Move an item to another location.
 
-        Atalho conveniente para mudar a localização de um item.
+        Convenient shortcut to change an item's location.
 
         Args:
-            item_id: ID (UUID) do item a mover.
-            location_id: ID (UUID) da nova localização.
+            item_id: Item ID (UUID) to move.
+            location_id: New location ID (UUID).
 
         Returns:
-            Item atualizado com a nova localização.
+            Updated item with the new location.
         """
         return await client.move_item(item_id, location_id)
 
     @mcp.tool()
     async def homebox_delete_item(item_id: str) -> str:
-        """Remove um item do inventário.
+        """Remove an item from the inventory.
 
-        ATENÇÃO: Esta ação é permanente.
+        WARNING: This action is permanent.
 
         Args:
-            item_id: ID (UUID) do item a remover.
+            item_id: Item ID (UUID) to remove.
 
         Returns:
-            Mensagem de confirmação.
+            Confirmation message.
         """
         await client.delete_item(item_id)
-        return f"Item {item_id} removido com sucesso."
+        return f"Item {item_id} successfully removed."
 
     # =========================================================================
     # Label Tools
@@ -315,12 +376,12 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
 
     @mcp.tool()
     async def homebox_list_labels() -> list[dict[str, Any]]:
-        """Lista todas as labels/etiquetas do inventário.
+        """List all labels/tags in the inventory.
 
-        Labels são usadas para categorizar e organizar itens.
+        Labels are used to categorize and organize items.
 
         Returns:
-            Lista de labels com id, name, description e color.
+            List of labels with id, name, description, and color.
         """
         labels = await client.get_labels()
         return [
@@ -340,18 +401,18 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         description: str | None = None,
         color: str | None = None,
     ) -> dict[str, Any]:
-        """Cria uma nova label/etiqueta.
+        """Create a new label/tag.
 
-        Labels são úteis para categorizar itens (ex: "Eletrônicos",
-        "Ferramentas", "Documentos").
+        Labels are useful for categorizing items (e.g., "Electronics",
+        "Tools", "Documents").
 
         Args:
-            name: Nome da label (obrigatório).
-            description: Descrição da label (opcional).
-            color: Cor em formato hexadecimal (ex: "#FF5733").
+            name: Label name (required).
+            description: Label description (optional).
+            color: Color in hexadecimal format (e.g., "#FF5733").
 
         Returns:
-            Label criada com todos os campos.
+            Created label with all fields.
         """
         return await client.create_label(name, description, color)
 
@@ -362,33 +423,33 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
         description: str | None = None,
         color: str | None = None,
     ) -> dict[str, Any]:
-        """Atualiza uma label existente.
+        """Update an existing label.
 
         Args:
-            label_id: ID (UUID) da label a atualizar.
-            name: Novo nome (opcional).
-            description: Nova descrição (opcional).
-            color: Nova cor em formato hexadecimal (opcional).
+            label_id: Label ID (UUID) to update.
+            name: New name (optional).
+            description: New description (optional).
+            color: New color in hexadecimal format (optional).
 
         Returns:
-            Label atualizada.
+            Updated label.
         """
         return await client.update_label(label_id, name, description, color)
 
     @mcp.tool()
     async def homebox_delete_label(label_id: str) -> str:
-        """Remove uma label do inventário.
+        """Remove a label from the inventory.
 
-        Os itens associados não serão removidos, apenas perderão a label.
+        Associated items will not be removed, they will just lose the label.
 
         Args:
-            label_id: ID (UUID) da label a remover.
+            label_id: Label ID (UUID) to remove.
 
         Returns:
-            Mensagem de confirmação.
+            Confirmation message.
         """
         await client.delete_label(label_id)
-        return f"Label {label_id} removida com sucesso."
+        return f"Label {label_id} successfully removed."
 
     # =========================================================================
     # Statistics Tools
@@ -396,13 +457,13 @@ def register_tools(mcp: FastMCP, client: HomeboxClient) -> None:
 
     @mcp.tool()
     async def homebox_get_statistics() -> dict[str, Any]:
-        """Obtém estatísticas do inventário.
+        """Get inventory statistics.
 
-        Retorna contagens e totais úteis para ter uma visão geral do
-        inventário.
+        Returns counts and totals useful for getting an overview of
+        the inventory.
 
         Returns:
-            Estatísticas incluindo contagem de itens, localizações,
-            labels e valor total.
+            Statistics including item count, locations, labels,
+            and total value.
         """
         return await client.get_statistics()

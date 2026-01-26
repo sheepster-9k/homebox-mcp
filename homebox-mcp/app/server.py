@@ -122,8 +122,9 @@ MCP Server connected to Homebox at: {config.homebox_url}
 ## Available Tools
 
 ### Locations
-- homebox_list_locations - List all locations
-- homebox_get_location - Get location details
+- homebox_list_locations - List all locations (flat list)
+- homebox_get_location_tree - Get full location hierarchy tree
+- homebox_get_location - Get location details with parent/children
 - homebox_create_location - Create new location
 - homebox_update_location - Update location
 - homebox_delete_location - Remove location
@@ -516,6 +517,10 @@ async def homepage(request):
                     <div class="tool-desc">List all locations</div>
                 </div>
                 <div class="tool-item">
+                    <div class="tool-name">homebox_get_location_tree</div>
+                    <div class="tool-desc">Get full hierarchy tree</div>
+                </div>
+                <div class="tool-item">
                     <div class="tool-name">homebox_list_items</div>
                     <div class="tool-desc">List items with filters</div>
                 </div>
@@ -534,10 +539,6 @@ async def homepage(request):
                 <div class="tool-item">
                     <div class="tool-name">homebox_list_labels</div>
                     <div class="tool-desc">List all labels</div>
-                </div>
-                <div class="tool-item">
-                    <div class="tool-name">homebox_create_location</div>
-                    <div class="tool-desc">Create new location</div>
                 </div>
                 <div class="tool-item">
                     <div class="tool-name">homebox_get_statistics</div>
