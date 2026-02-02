@@ -152,13 +152,23 @@ class HomeboxClient:
         Returns:
             Updated location object.
         """
-        data: dict[str, Any] = {}
-        if name is not None:
-            data["name"] = name
-        if description is not None:
-            data["description"] = description
+        # Fetch current location to preserve fields not provided.
+        current = await self.get_location(location_id)
+        current_parent_id = (
+            current.get("parent", {}).get("id") if current.get("parent") else None
+        )
+
+        data: dict[str, Any] = {
+            "name": name if name is not None else current.get("name", ""),
+            "description": (
+                description if description is not None else current.get("description", "")
+            ),
+            "parentId": current_parent_id,
+        }
+
+        # If parent_id is explicitly provided, use it (empty string clears parent).
         if parent_id is not None:
-            data["parentId"] = parent_id
+            data["parentId"] = parent_id or None
 
         return await self._request("PUT", f"/locations/{location_id}", json=data)
 

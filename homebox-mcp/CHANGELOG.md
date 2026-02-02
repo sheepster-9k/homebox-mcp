@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documented workaround for Homebox API not returning parent_id in list endpoint
 
+## [0.2.1] - 2026-01-26
+
+### Fixed
+
+- Preserve `parentId` when updating a location without specifying a new parent
+  - Prevents accidental loss of hierarchy on location updates
+
 ## [0.1.8] - 2026-01-10
 
 ### Added
