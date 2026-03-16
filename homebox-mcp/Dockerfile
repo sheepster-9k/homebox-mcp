@@ -14,11 +14,11 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     && pip3 install --no-cache-dir --break-system-packages \
-    fastmcp==2.5.1 \
-    httpx==0.28.1 \
-    pydantic==2.12.5 \
-    starlette==0.52.1 \
-    uvicorn==0.41.0
+    fastmcp \
+    httpx \
+    pydantic \
+    starlette \
+    uvicorn
 
 # Build arguments
 ARG BUILD_ARCH
@@ -46,4 +46,4 @@ LABEL \
     org.opencontainers.image.documentation="https://github.com/${BUILD_REPOSITORY}/blob/main/README.md" \
     org.opencontainers.image.created=${BUILD_DATE} \
     org.opencontainers.image.revision=${BUILD_REF} \
-    org.opencontainers.image.version=${BUILD_VERSION}
+    io.opencontainers.image.version=${BUILD_VERSION}
