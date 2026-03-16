@@ -90,7 +90,9 @@ async def homebox_update_location(
         parent_id: New parent location UUID (unchanged if omitted).
     """
     existing = await client.get_location(location_id)
-    data = {**existing}
+    # Strip read-only/server-managed fields before PUT
+    data = {k: v for k, v in existing.items()
+            if k not in ("id", "createdAt", "updatedAt", "items", "children")}
     if name is not None:
         data["name"] = name
     if description is not None:
@@ -287,7 +289,9 @@ async def homebox_update_label(
         color: New hex color.
     """
     existing = await client.get_label(label_id)
-    data = {**existing}
+    # Strip read-only/server-managed fields before PUT
+    data = {k: v for k, v in existing.items()
+            if k not in ("id", "createdAt", "updatedAt", "items")}
     if name is not None:
         data["name"] = name
     if description is not None:
