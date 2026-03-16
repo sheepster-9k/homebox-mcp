@@ -227,6 +227,7 @@ _login_attempts: dict[str, list[float]] = {}
 _LOGIN_RATE_WINDOW = 60.0  # seconds
 _LOGIN_RATE_MAX = 5  # max attempts per window
 _LOGIN_MAX_BODY = 4096  # bytes
+_LOGIN_MAX_TRACKED_IPS = 1000  # cap to prevent memory exhaustion
 
 
 async def api_login(request: Request) -> JSONResponse:
@@ -240,6 +241,16 @@ async def api_login(request: Request) -> JSONResponse:
     # Rate limit by client IP
     client_ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
+
+    # Periodic global eviction: when dict exceeds cap, purge all expired entries
+    if len(_login_attempts) > _LOGIN_MAX_TRACKED_IPS:
+        stale = [
+            ip for ip, ts in _login_attempts.items()
+            if not any(now - t < _LOGIN_RATE_WINDOW for t in ts)
+        ]
+        for ip in stale:
+            del _login_attempts[ip]
+
     attempts = _login_attempts.get(client_ip, [])
     attempts = [t for t in attempts if now - t < _LOGIN_RATE_WINDOW]
     if not attempts:
