@@ -79,6 +79,11 @@ class HomeboxClient:
         """Return current auth headers."""
         return {"Authorization": f"Bearer {self._token}"}
 
+    async def set_token(self, token: str) -> None:
+        """Thread-safe update of the bearer token."""
+        async with self._auth_lock:
+            self._token = token
+
     async def close(self) -> None:
         async with self._client_lock:
             if self._client is not None and not self._client.is_closed:

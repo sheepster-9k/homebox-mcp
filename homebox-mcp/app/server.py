@@ -242,6 +242,8 @@ async def api_login(request: Request) -> JSONResponse:
     now = time.monotonic()
     attempts = _login_attempts.get(client_ip, [])
     attempts = [t for t in attempts if now - t < _LOGIN_RATE_WINDOW]
+    if not attempts:
+        _login_attempts.pop(client_ip, None)
     if len(attempts) >= _LOGIN_RATE_MAX:
         return JSONResponse(
             {"error": "Too many login attempts. Try again later."},
@@ -252,8 +254,11 @@ async def api_login(request: Request) -> JSONResponse:
 
     # Limit request body size
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > _LOGIN_MAX_BODY:
-        return JSONResponse({"error": "Request too large"}, status_code=413)
+    try:
+        if content_length and int(content_length) > _LOGIN_MAX_BODY:
+            return JSONResponse({"error": "Request too large"}, status_code=413)
+    except ValueError:
+        pass  # Malformed content-length header, let body-size check handle it
 
     try:
         raw_body = await request.body()
@@ -312,7 +317,7 @@ async def api_login(request: Request) -> JSONResponse:
         )
 
     # Also update the running client's token so tools work immediately
-    client._token = token
+    await client.set_token(token)
     logger.info("Login token retrieved and applied to running client")
 
     return JSONResponse({"token": token, "saved": True})
@@ -340,9 +345,12 @@ def create_app() -> Starlette:
         Mount("/", app=mcp_app),
     ]
 
+    # Propagate FastMCP's lifespan to the parent app so its internal
+    # session/task groups are properly initialized (required since FastMCP 3.x).
     app = Starlette(
         routes=routes,
         middleware=[Middleware(BearerAuthMiddleware)],
+        lifespan=getattr(mcp_app, "lifespan", None),
         on_shutdown=[shutdown],
     )
     return app
