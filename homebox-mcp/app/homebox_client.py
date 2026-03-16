@@ -49,14 +49,20 @@ def _deep_merge(base: dict, updates: dict) -> dict:
 
 
 class HomeboxClient:
-    """Thin async wrapper around the Homebox REST API (v1)."""
+    """Thin async wrapper around the Homebox REST API (v1).
+
+    Supports two auth modes:
+    - Static token (HOMEBOX_TOKEN)
+    - Username/password login with automatic token refresh on 401
+    """
 
     def __init__(self) -> None:
         cfg = get_config()
         self._base = f"{cfg.homebox_url}/api/v1"
-        self._headers = {"Authorization": f"Bearer {cfg.homebox_token}"}
+        self._token: str = cfg.homebox_token
         self._client: httpx.AsyncClient | None = None
         self._client_lock = asyncio.Lock()
+        self._auth_lock = asyncio.Lock()
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -65,16 +71,81 @@ class HomeboxClient:
             if self._client is None or self._client.is_closed:
                 self._client = httpx.AsyncClient(
                     base_url=self._base,
-                    headers=self._headers,
                     timeout=_TIMEOUT,
                 )
             return self._client
+
+    def _auth_headers(self) -> dict[str, str]:
+        """Return current auth headers."""
+        return {"Authorization": f"Bearer {self._token}"}
 
     async def close(self) -> None:
         async with self._client_lock:
             if self._client is not None and not self._client.is_closed:
                 await self._client.aclose()
                 self._client = None
+
+    # -- login-based auth ---------------------------------------------------
+
+    async def authenticate(self) -> str:
+        """Login with username/password and return the bearer token.
+
+        Updates the internal token so subsequent requests use it.
+        Can also be called standalone to retrieve a token for display.
+        """
+        cfg = get_config()
+        if not cfg.homebox_username or not cfg.homebox_password:
+            raise HomeboxError(
+                "Cannot authenticate: HOMEBOX_USERNAME and HOMEBOX_PASSWORD not set"
+            )
+        async with self._auth_lock:
+            client = await self._get_client()
+            try:
+                resp = await client.post(
+                    "/users/login",
+                    json={
+                        "username": cfg.homebox_username,
+                        "password": cfg.homebox_password,
+                    },
+                )
+                if resp.status_code == 401:
+                    raise HomeboxError(
+                        "Login failed — invalid username or password"
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+                token = data.get("token", "")
+                if not token:
+                    raise HomeboxError("Login succeeded but no token returned")
+                self._token = token
+                logger.info("Authenticated with Homebox via username/password")
+                return token
+            except httpx.HTTPStatusError as exc:
+                raise HomeboxError(
+                    f"Login failed with HTTP {exc.response.status_code}"
+                ) from None
+            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                raise HomeboxError(
+                    "Cannot connect to Homebox for login"
+                ) from exc
+
+    async def ensure_authenticated(self) -> None:
+        """Ensure we have a valid token — login if using username/password mode.
+
+        If no credentials are configured at all, raises an error directing
+        the user to the /login page.
+        """
+        cfg = get_config()
+        if self._token:
+            return
+        if cfg.uses_login:
+            await self.authenticate()
+        else:
+            raise HomeboxError(
+                "No Homebox token available. Either set HOMEBOX_TOKEN, "
+                "set HOMEBOX_USERNAME + HOMEBOX_PASSWORD, or use the "
+                "/login page to authenticate."
+            )
 
     # -- low-level request with one retry on transient errors -----------------
 
@@ -86,15 +157,23 @@ class HomeboxClient:
         params: dict[str, Any] | None = None,
         json: Any | None = None,
     ) -> httpx.Response:
+        await self.ensure_authenticated()
         client = await self._get_client()
         last_exc: Exception | None = None
 
         for attempt in range(2):  # initial + 1 retry
             try:
                 resp = await client.request(
-                    method, path, params=params, json=json
+                    method, path, params=params, json=json,
+                    headers=self._auth_headers(),
                 )
-                if resp.status_code == 401:
+                # Auto-refresh token on 401 when using login mode
+                if resp.status_code == 401 and attempt == 0:
+                    cfg = get_config()
+                    if cfg.uses_login:
+                        logger.info("Token expired, re-authenticating")
+                        await self.authenticate()
+                        continue
                     raise HomeboxError(
                         "Authentication failed — check HOMEBOX_TOKEN"
                     )

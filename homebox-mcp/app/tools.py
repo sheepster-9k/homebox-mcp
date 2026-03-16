@@ -152,6 +152,9 @@ async def homebox_get_item(item_id: str) -> dict[str, Any]:
     return await client.get_item(item_id)
 
 
+_MAX_QUERY_LENGTH = 500
+
+
 @mcp.tool()
 async def homebox_search(query: str) -> list[dict[str, Any]]:
     """Full-text search across all items in Homebox.
@@ -159,6 +162,8 @@ async def homebox_search(query: str) -> list[dict[str, Any]]:
     Args:
         query: Search string (matched against name, description, notes, and fields).
     """
+    if len(query) > _MAX_QUERY_LENGTH:
+        query = query[:_MAX_QUERY_LENGTH]
     return await client.search_items(query)
 
 

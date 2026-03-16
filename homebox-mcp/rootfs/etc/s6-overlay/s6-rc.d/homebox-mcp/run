@@ -7,14 +7,44 @@
 
 bashio::log.info "Starting Homebox MCP Server..."
 
+# Helper: read a config key, returning empty string if missing or "null"
+_cfg() {
+    local key="$1"
+    local val=""
+    if bashio::config.has_value "${key}"; then
+        val="$(bashio::config "${key}")"
+    fi
+    # bashio returns literal "null" for unset optional keys
+    if [[ "${val}" == "null" ]]; then
+        val=""
+    fi
+    printf '%s' "${val}"
+}
+
 # Export configuration as environment variables
-export HOMEBOX_URL="$(bashio::config 'homebox_url')"
-export HOMEBOX_TOKEN="$(bashio::config 'homebox_token')"
-export MCP_AUTH_TOKEN="$(bashio::config 'mcp_auth_token')"
-export LOG_LEVEL="$(bashio::config 'log_level')"
+export HOMEBOX_URL="$(_cfg 'homebox_url')"
+export HOMEBOX_TOKEN="$(_cfg 'homebox_token')"
+export HOMEBOX_USERNAME="$(_cfg 'homebox_username')"
+export HOMEBOX_PASSWORD="$(_cfg 'homebox_password')"
+export MCP_AUTH_TOKEN="$(_cfg 'mcp_auth_token')"
+export LOG_LEVEL="$(_cfg 'log_level')"
+
+# Default log level if empty
+if [[ -z "${LOG_LEVEL}" ]]; then
+    export LOG_LEVEL="info"
+fi
+
+# Determine Homebox auth mode
+if [[ -n "${HOMEBOX_TOKEN}" ]]; then
+    bashio::log.info "Homebox auth: using static token"
+elif [[ -n "${HOMEBOX_USERNAME}" && -n "${HOMEBOX_PASSWORD}" ]]; then
+    bashio::log.info "Homebox auth: using username/password login"
+else
+    bashio::log.warning "No Homebox credentials configured — use the login page at /login to authenticate"
+fi
 
 # Convert boolean to string explicitly
-if bashio::config.true 'mcp_auth_enabled'; then
+if bashio::config.has_value 'mcp_auth_enabled' && bashio::config.true 'mcp_auth_enabled'; then
     export MCP_AUTH_ENABLED="true"
     bashio::log.info "MCP Authentication: ENABLED"
     if [[ -n "${MCP_AUTH_TOKEN}" ]]; then
@@ -27,7 +57,12 @@ else
     bashio::log.warning "MCP Authentication: DISABLED - Anyone can access the MCP endpoint"
 fi
 
+# Use HA's ingress port so the sidebar panel works
+export SERVER_PORT="${INGRESS_PORT:-8099}"
+export SERVER_HOST="0.0.0.0"
+
 bashio::log.info "Connecting to Homebox at: ${HOMEBOX_URL}"
+bashio::log.info "Listening on port: ${SERVER_PORT}"
 bashio::log.debug "MCP_AUTH_ENABLED=${MCP_AUTH_ENABLED}"
 
 # Run the MCP server

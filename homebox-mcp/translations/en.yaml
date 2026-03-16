@@ -5,7 +5,18 @@ configuration:
     description: URL of the Homebox server (e.g., http://homeassistant.local:7745)
   homebox_token:
     name: Homebox API Token
-    description: API token from Homebox. Create one in Homebox → Profile → API Tokens
+    description: >-
+      Static API token for Homebox. Leave empty if using username/password login instead.
+      You can also get a token from the /login page.
+  homebox_username:
+    name: Homebox Username
+    description: >-
+      Username for Homebox login. Used as an alternative to a static token —
+      the server will authenticate automatically and refresh on expiry.
+  homebox_password:
+    name: Homebox Password
+    description: >-
+      Password for Homebox login. Used together with username.
   mcp_auth_enabled:
     name: Enable MCP Authentication
     description: When enabled, clients must provide a Bearer token to access the MCP endpoint. Recommended to test without auth first, then enable.
