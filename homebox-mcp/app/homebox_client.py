@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -15,11 +16,25 @@ logger = logging.getLogger(__name__)
 _TRANSIENT_STATUS_CODES = frozenset(range(500, 600))
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _MAX_PAGE_SIZE = 100
+_MAX_TOTAL_ITEMS = 10_000  # Safety cap to prevent memory exhaustion
 _ITEM_READONLY_FIELDS = frozenset({"id", "createdAt", "updatedAt", "group", "groupId"})
+
+# Homebox uses UUIDs for all resource identifiers.
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class HomeboxError(Exception):
     """Raised for non-transient Homebox API errors."""
+
+
+def _validate_id(value: str, name: str = "id") -> str:
+    """Validate that a string looks like a UUID to prevent path traversal."""
+    if not _UUID_RE.match(value):
+        raise HomeboxError(f"Invalid {name}: expected a UUID, got {value!r}")
+    return value
 
 
 def _deep_merge(base: dict, updates: dict) -> dict:
@@ -93,6 +108,12 @@ class HomeboxClient:
                     continue
                 resp.raise_for_status()
                 return resp
+            except httpx.HTTPStatusError as exc:
+                # Sanitise error: never leak the upstream URL or headers.
+                status = exc.response.status_code
+                raise HomeboxError(
+                    f"Homebox API returned HTTP {status} for {method} {path}"
+                ) from None
             except (httpx.ConnectError, httpx.ReadTimeout) as exc:
                 last_exc = exc
                 if attempt == 0:
@@ -150,6 +171,13 @@ class HomeboxClient:
             total = body.get("total", len(all_items))
             if len(all_items) >= total or len(items) < _MAX_PAGE_SIZE:
                 break
+            if len(all_items) >= _MAX_TOTAL_ITEMS:
+                logger.warning(
+                    "Pagination cap reached (%d items) for %s — truncating",
+                    _MAX_TOTAL_ITEMS,
+                    path,
+                )
+                break
             page += 1
 
         return all_items
@@ -162,6 +190,7 @@ class HomeboxClient:
 
     async def get_location(self, location_id: str) -> dict[str, Any]:
         """Return a single location with its items."""
+        _validate_id(location_id, "location_id")
         return await self._get(f"/locations/{location_id}")
 
     async def create_location(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -172,10 +201,12 @@ class HomeboxClient:
         self, location_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
         """Update an existing location (partial merge)."""
+        _validate_id(location_id, "location_id")
         return await self._put(f"/locations/{location_id}", json=data)
 
     async def delete_location(self, location_id: str) -> None:
         """Delete a location."""
+        _validate_id(location_id, "location_id")
         await self._delete(f"/locations/{location_id}")
 
     # -- items ----------------------------------------------------------------
@@ -190,8 +221,10 @@ class HomeboxClient:
         """Return items with full pagination. Supports optional filters."""
         params: dict[str, Any] = {}
         if location_id:
+            _validate_id(location_id, "location_id")
             params["locations"] = location_id
         if label_id:
+            _validate_id(label_id, "label_id")
             params["labels"] = label_id
         if search:
             params["q"] = search
@@ -199,6 +232,7 @@ class HomeboxClient:
 
     async def get_item(self, item_id: str) -> dict[str, Any]:
         """Return the full detail for a single item."""
+        _validate_id(item_id, "item_id")
         return await self._get(f"/items/{item_id}")
 
     async def create_item(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -213,6 +247,7 @@ class HomeboxClient:
         Only the keys present in *updates* are overwritten; every other
         field is kept as-is so nothing is accidentally blanked out.
         """
+        _validate_id(item_id, "item_id")
         existing = await self.get_item(item_id)
         merged = _deep_merge(existing, updates)
         # Remove read-only / server-managed keys that the API rejects.
@@ -221,12 +256,14 @@ class HomeboxClient:
 
     async def delete_item(self, item_id: str) -> None:
         """Delete an item."""
+        _validate_id(item_id, "item_id")
         await self._delete(f"/items/{item_id}")
 
     async def move_item(
         self, item_id: str, location_id: str
     ) -> dict[str, Any]:
         """Move an item to a different location via update."""
+        _validate_id(location_id, "location_id")
         return await self.update_item(
             item_id, {"location": {"id": location_id}}
         )
@@ -245,6 +282,7 @@ class HomeboxClient:
 
     async def get_label(self, label_id: str) -> dict[str, Any]:
         """Return a single label."""
+        _validate_id(label_id, "label_id")
         return await self._get(f"/labels/{label_id}")
 
     async def create_label(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -255,10 +293,12 @@ class HomeboxClient:
         self, label_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
         """Update an existing label."""
+        _validate_id(label_id, "label_id")
         return await self._put(f"/labels/{label_id}", json=data)
 
     async def delete_label(self, label_id: str) -> None:
         """Delete a label."""
+        _validate_id(label_id, "label_id")
         await self._delete(f"/labels/{label_id}")
 
     # -- statistics -----------------------------------------------------------

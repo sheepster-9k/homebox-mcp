@@ -35,6 +35,12 @@ logger = logging.getLogger("homebox-mcp")
 _PUBLIC_PATHS = frozenset({"/", "/api/status"})
 
 
+def _is_public_path(path: str) -> bool:
+    """Check if a request path is public, normalising trailing slashes."""
+    normalised = path.rstrip("/") or "/"
+    return normalised in _PUBLIC_PATHS
+
+
 class BearerAuthMiddleware(BaseHTTPMiddleware):
     """Reject requests without a valid Bearer token.
 
@@ -46,7 +52,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         if not get_config().mcp_auth_enabled:
             return await call_next(request)
 
-        if request.url.path in _PUBLIC_PATHS:
+        if _is_public_path(request.url.path):
             return await call_next(request)
 
         auth_header = request.headers.get("authorization", "")

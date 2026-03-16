@@ -25,6 +25,10 @@ class Config:
         homebox_url = os.environ.get("HOMEBOX_URL", "").rstrip("/")
         if not homebox_url:
             raise RuntimeError("HOMEBOX_URL environment variable is required")
+        if not homebox_url.startswith(("http://", "https://")):
+            raise RuntimeError(
+                "HOMEBOX_URL must start with http:// or https://"
+            )
 
         mcp_auth_enabled = os.environ.get(
             "MCP_AUTH_ENABLED", "false"
@@ -41,12 +45,17 @@ class Config:
         except ValueError:
             server_port = 8099
 
+        _VALID_LOG_LEVELS = {"trace", "debug", "info", "warning", "error"}
+        log_level = os.environ.get("LOG_LEVEL", "info").lower()
+        if log_level not in _VALID_LOG_LEVELS:
+            log_level = "info"
+
         return cls(
             homebox_url=homebox_url,
             homebox_token=token,
             mcp_auth_enabled=mcp_auth_enabled,
             mcp_auth_token=mcp_auth_token,
-            log_level=os.environ.get("LOG_LEVEL", "info").lower(),
+            log_level=log_level,
             server_host=os.environ.get("SERVER_HOST", "0.0.0.0"),
             server_port=server_port,
         )
