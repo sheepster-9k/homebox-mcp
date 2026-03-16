@@ -346,7 +346,7 @@ async def shutdown() -> None:
 
 def create_app() -> Starlette:
     """Build the Starlette app with MCP mounted at root."""
-    mcp_app = mcp.http_app(transport="sse")
+    mcp_app = mcp.sse_app()
 
     routes = [
         Route("/", dashboard),
@@ -356,12 +356,9 @@ def create_app() -> Starlette:
         Mount("/", app=mcp_app),
     ]
 
-    # Propagate FastMCP's lifespan to the parent app so its internal
-    # session/task groups are properly initialized (required since FastMCP 3.x).
     app = Starlette(
         routes=routes,
         middleware=[Middleware(BearerAuthMiddleware)],
-        lifespan=getattr(mcp_app, "lifespan", None),
         on_shutdown=[shutdown],
     )
     return app
