@@ -22,6 +22,10 @@ class Config:
         if not token:
             raise RuntimeError("HOMEBOX_TOKEN environment variable is required")
 
+        homebox_url = os.environ.get("HOMEBOX_URL", "").rstrip("/")
+        if not homebox_url:
+            raise RuntimeError("HOMEBOX_URL environment variable is required")
+
         mcp_auth_enabled = os.environ.get(
             "MCP_AUTH_ENABLED", "false"
         ).lower() in ("true", "1", "yes")
@@ -32,17 +36,28 @@ class Config:
                 "MCP_AUTH_TOKEN is required when MCP_AUTH_ENABLED is true"
             )
 
+        try:
+            server_port = int(os.environ.get("SERVER_PORT", "8099"))
+        except ValueError:
+            server_port = 8099
+
         return cls(
-            homebox_url=os.environ.get(
-                "HOMEBOX_URL", "https://hb.neon-sheep.net"
-            ).rstrip("/"),
+            homebox_url=homebox_url,
             homebox_token=token,
             mcp_auth_enabled=mcp_auth_enabled,
             mcp_auth_token=mcp_auth_token,
             log_level=os.environ.get("LOG_LEVEL", "info").lower(),
             server_host=os.environ.get("SERVER_HOST", "0.0.0.0"),
-            server_port=int(os.environ.get("SERVER_PORT", "8099")),
+            server_port=server_port,
         )
 
 
-config = Config.from_environment()
+_config: Config | None = None
+
+
+def get_config() -> Config:
+    """Lazy config initialization — defers validation until first access."""
+    global _config
+    if _config is None:
+        _config = Config.from_environment()
+    return _config

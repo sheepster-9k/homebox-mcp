@@ -33,8 +33,14 @@ async def homebox_get_location_tree() -> list[dict[str, Any]]:
     if not locations:
         return []
 
+    sem = asyncio.Semaphore(10)
+
+    async def _limited_get(loc_id: str) -> dict[str, Any]:
+        async with sem:
+            return await client.get_location(loc_id)
+
     details = await asyncio.gather(
-        *(client.get_location(loc["id"]) for loc in locations)
+        *(_limited_get(loc["id"]) for loc in locations)
     )
     return list(details)
 
@@ -83,7 +89,8 @@ async def homebox_update_location(
         description: New description (unchanged if omitted).
         parent_id: New parent location UUID (unchanged if omitted).
     """
-    data: dict[str, Any] = {}
+    existing = await client.get_location(location_id)
+    data = {**existing}
     if name is not None:
         data["name"] = name
     if description is not None:
@@ -279,7 +286,8 @@ async def homebox_update_label(
         description: New description.
         color: New hex color.
     """
-    data: dict[str, Any] = {}
+    existing = await client.get_label(label_id)
+    data = {**existing}
     if name is not None:
         data["name"] = name
     if description is not None:

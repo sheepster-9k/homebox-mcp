@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
 import httpx
 
-from config import config
+from config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -16,24 +17,42 @@ _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _MAX_PAGE_SIZE = 100
 
 
+class HomeboxError(Exception):
+    """Raised for non-transient Homebox API errors."""
+
+
+def _deep_merge(base: dict, updates: dict) -> dict:
+    """Deep merge updates into base, preserving nested structure."""
+    result = dict(base)
+    for key, value in updates.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 class HomeboxClient:
     """Thin async wrapper around the Homebox REST API (v1)."""
 
     def __init__(self) -> None:
-        self._base = f"{config.homebox_url}/api/v1"
-        self._headers = {"Authorization": f"Bearer {config.homebox_token}"}
+        cfg = get_config()
+        self._base = f"{cfg.homebox_url}/api/v1"
+        self._headers = {"Authorization": f"Bearer {cfg.homebox_token}"}
         self._client: httpx.AsyncClient | None = None
+        self._client_lock = asyncio.Lock()
 
     # -- lifecycle ------------------------------------------------------------
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self._base,
-                headers=self._headers,
-                timeout=_TIMEOUT,
-            )
-        return self._client
+        async with self._client_lock:
+            if self._client is None or self._client.is_closed:
+                self._client = httpx.AsyncClient(
+                    base_url=self._base,
+                    headers=self._headers,
+                    timeout=_TIMEOUT,
+                )
+            return self._client
 
     async def close(self) -> None:
         if self._client is not None and not self._client.is_closed:
@@ -58,6 +77,10 @@ class HomeboxClient:
                 resp = await client.request(
                     method, path, params=params, json=json
                 )
+                if resp.status_code == 401:
+                    raise HomeboxError(
+                        "Authentication failed — check HOMEBOX_TOKEN"
+                    )
                 if resp.status_code in _TRANSIENT_STATUS_CODES and attempt == 0:
                     logger.warning(
                         "Transient %s on %s %s, retrying",
@@ -189,7 +212,7 @@ class HomeboxClient:
         field is kept as-is so nothing is accidentally blanked out.
         """
         existing = await self.get_item(item_id)
-        merged = {**existing, **updates}
+        merged = _deep_merge(existing, updates)
         # Remove read-only / server-managed keys that the API rejects.
         for key in ("createdAt", "updatedAt", "id"):
             merged.pop(key, None)
@@ -218,6 +241,10 @@ class HomeboxClient:
     async def get_labels(self) -> list[dict[str, Any]]:
         """Return all labels."""
         return await self._get("/labels")
+
+    async def get_label(self, label_id: str) -> dict[str, Any]:
+        """Return a single label."""
+        return await self._get(f"/labels/{label_id}")
 
     async def create_label(self, data: dict[str, Any]) -> dict[str, Any]:
         """Create a new label."""

@@ -14,11 +14,11 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     && pip3 install --no-cache-dir --break-system-packages \
-    fastmcp \
-    httpx \
-    pydantic \
-    starlette \
-    uvicorn
+    fastmcp==2.5.1 \
+    httpx==0.28.1 \
+    pydantic==2.11.1 \
+    starlette==0.45.3 \
+    uvicorn==0.34.0
 
 # Build arguments
 ARG BUILD_ARCH

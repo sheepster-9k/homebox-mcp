@@ -15,13 +15,14 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 
-from config import config
+from config import get_config
 
 # Import tools so they get registered on the shared `mcp` instance.
 from tools import mcp  # noqa: F401
+from homebox_client import client
 
 logging.basicConfig(
-    level=getattr(logging, config.log_level.upper(), logging.INFO),
+    level=getattr(logging, get_config().log_level.upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream=sys.stderr,
 )
@@ -42,7 +43,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
-        if not config.mcp_auth_enabled:
+        if not get_config().mcp_auth_enabled:
             return await call_next(request)
 
         if request.url.path in _PUBLIC_PATHS:
@@ -55,7 +56,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             )
 
         provided = auth_header[7:]  # strip "Bearer "
-        expected = config.mcp_auth_token or ""
+        expected = get_config().mcp_auth_token or ""
 
         if not hmac.compare_digest(provided.encode(), expected.encode()):
             return JSONResponse(
@@ -95,8 +96,9 @@ _DASHBOARD_HTML = """\
 
 
 async def dashboard(request: Request) -> HTMLResponse:
-    safe_url = html.escape(config.homebox_url)
-    safe_auth = html.escape(str(config.mcp_auth_enabled).lower())
+    cfg = get_config()
+    safe_url = html.escape(cfg.homebox_url)
+    safe_auth = html.escape(str(cfg.mcp_auth_enabled).lower())
     body = _DASHBOARD_HTML.format(
         homebox_url=safe_url,
         auth_enabled=safe_auth,
@@ -108,8 +110,8 @@ async def api_status(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "status": "ok",
-            "homebox_url": config.homebox_url,
-            "auth_enabled": config.mcp_auth_enabled,
+            "homebox_url": get_config().homebox_url,
+            "auth_enabled": get_config().mcp_auth_enabled,
         }
     )
 
@@ -117,6 +119,11 @@ async def api_status(request: Request) -> JSONResponse:
 # ---------------------------------------------------------------------------
 # Application assembly
 # ---------------------------------------------------------------------------
+
+
+async def shutdown() -> None:
+    """Clean up the Homebox client on server shutdown."""
+    await client.close()
 
 
 def create_app() -> Starlette:
@@ -132,6 +139,7 @@ def create_app() -> Starlette:
     app = Starlette(
         routes=routes,
         middleware=[Middleware(BearerAuthMiddleware)],
+        on_shutdown=[shutdown],
     )
     return app
 
@@ -139,12 +147,13 @@ def create_app() -> Starlette:
 app = create_app()
 
 if __name__ == "__main__":
+    cfg = get_config()
     logger.info(
-        "Starting Homebox MCP on %s:%s", config.server_host, config.server_port
+        "Starting Homebox MCP on %s:%s", cfg.server_host, cfg.server_port
     )
     uvicorn.run(
         "server:app",
-        host=config.server_host,
-        port=config.server_port,
-        log_level=config.log_level,
+        host=cfg.server_host,
+        port=cfg.server_port,
+        log_level=cfg.log_level,
     )
