@@ -7,6 +7,7 @@ import html
 import json
 import logging
 import sys
+import time
 
 import uvicorn
 from starlette.applications import Starlette
@@ -236,7 +237,6 @@ async def api_login(request: Request) -> JSONResponse:
     Accepts JSON: {"username": "...", "password": "..."}
     Always uses the server's configured HOMEBOX_URL (not user-supplied) to prevent SSRF.
     """
-    import time
 
     # Rate limit by client IP
     client_ip = request.client.host if request.client else "unknown"
