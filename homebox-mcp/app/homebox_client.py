@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 _TRANSIENT_STATUS_CODES = frozenset(range(500, 600))
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _MAX_PAGE_SIZE = 100
+_ITEM_READONLY_FIELDS = frozenset({"id", "createdAt", "updatedAt", "group", "groupId"})
 
 
 class HomeboxError(Exception):
@@ -55,9 +56,10 @@ class HomeboxClient:
             return self._client
 
     async def close(self) -> None:
-        if self._client is not None and not self._client.is_closed:
-            await self._client.aclose()
-            self._client = None
+        async with self._client_lock:
+            if self._client is not None and not self._client.is_closed:
+                await self._client.aclose()
+                self._client = None
 
     # -- low-level request with one retry on transient errors -----------------
 
@@ -214,8 +216,7 @@ class HomeboxClient:
         existing = await self.get_item(item_id)
         merged = _deep_merge(existing, updates)
         # Remove read-only / server-managed keys that the API rejects.
-        for key in ("createdAt", "updatedAt", "id"):
-            merged.pop(key, None)
+        merged = {k: v for k, v in merged.items() if k not in _ITEM_READONLY_FIELDS}
         return await self._put(f"/items/{item_id}", json=merged)
 
     async def delete_item(self, item_id: str) -> None:

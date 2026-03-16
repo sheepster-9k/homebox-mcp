@@ -20,7 +20,7 @@ if bashio::config.true 'mcp_auth_enabled'; then
     if [[ -n "${MCP_AUTH_TOKEN}" ]]; then
         bashio::log.info "Using configured MCP auth token"
     else
-        bashio::log.info "No token configured - will auto-generate"
+        bashio::log.error "No MCP_AUTH_TOKEN configured but auth is enabled — server will fail to start"
     fi
 else
     export MCP_AUTH_ENABLED="false"

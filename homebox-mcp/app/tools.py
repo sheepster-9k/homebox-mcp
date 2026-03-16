@@ -11,6 +11,14 @@ from homebox_client import client
 
 mcp = FastMCP("homebox-mcp")
 
+_READONLY_FIELDS = frozenset({"id", "createdAt", "updatedAt"})
+
+
+def _strip_readonly(data: dict[str, Any], *extra_keys: str) -> dict[str, Any]:
+    """Remove read-only/server-managed fields before a PUT request."""
+    exclude = _READONLY_FIELDS | set(extra_keys)
+    return {k: v for k, v in data.items() if k not in exclude}
+
 
 # ---------------------------------------------------------------------------
 # Locations
@@ -90,9 +98,7 @@ async def homebox_update_location(
         parent_id: New parent location UUID (unchanged if omitted).
     """
     existing = await client.get_location(location_id)
-    # Strip read-only/server-managed fields before PUT
-    data = {k: v for k, v in existing.items()
-            if k not in ("id", "createdAt", "updatedAt", "items", "children")}
+    data = _strip_readonly(existing, "items", "children")
     if name is not None:
         data["name"] = name
     if description is not None:
@@ -289,9 +295,7 @@ async def homebox_update_label(
         color: New hex color.
     """
     existing = await client.get_label(label_id)
-    # Strip read-only/server-managed fields before PUT
-    data = {k: v for k, v in existing.items()
-            if k not in ("id", "createdAt", "updatedAt", "items")}
+    data = _strip_readonly(existing, "items")
     if name is not None:
         data["name"] = name
     if description is not None:

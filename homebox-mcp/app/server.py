@@ -110,7 +110,6 @@ async def api_status(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "status": "ok",
-            "homebox_url": get_config().homebox_url,
             "auth_enabled": get_config().mcp_auth_enabled,
         }
     )
