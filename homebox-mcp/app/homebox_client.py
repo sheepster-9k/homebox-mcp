@@ -1,455 +1,243 @@
-"""HTTP client for the Homebox API."""
+"""Async HTTP client for the Homebox API with pagination, retry, and safe updates."""
+
+from __future__ import annotations
 
 import logging
 from typing import Any
 
 import httpx
 
-from config import Config
+from config import config
 
 logger = logging.getLogger(__name__)
 
+_TRANSIENT_STATUS_CODES = frozenset(range(500, 600))
+_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+_MAX_PAGE_SIZE = 100
+
 
 class HomeboxClient:
-    """Async HTTP client for interacting with the Homebox API."""
+    """Thin async wrapper around the Homebox REST API (v1)."""
 
-    def __init__(self, config: Config):
-        """Initialize the Homebox client.
-
-        Args:
-            config: Configuration object with Homebox connection details.
-        """
-        self.config = config
-        self.base_url = config.api_base_url
-        self._token: str | None = None
+    def __init__(self) -> None:
+        self._base = f"{config.homebox_url}/api/v1"
+        self._headers = {"Authorization": f"Bearer {config.homebox_token}"}
         self._client: httpx.AsyncClient | None = None
 
+    # -- lifecycle ------------------------------------------------------------
+
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create the HTTP client."""
-        if self._client is None:
-            self._client = httpx.AsyncClient(timeout=30.0)
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                base_url=self._base,
+                headers=self._headers,
+                timeout=_TIMEOUT,
+            )
         return self._client
 
     async def close(self) -> None:
-        """Close the HTTP client."""
-        if self._client:
+        if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
 
-    async def _ensure_authenticated(self) -> None:
-        """Ensure we have a valid authentication token."""
-        if self._token is None:
-            if not self.config.homebox_token:
-                raise ValueError("Homebox API token not configured. Please set homebox_token in addon settings.")
-            self._token = self.config.homebox_token
-            logger.info("Using configured API token for Homebox authentication")
-
-    def _get_headers(self) -> dict[str, str]:
-        """Get headers for authenticated requests."""
-        headers = {"Content-Type": "application/json"}
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-        return headers
+    # -- low-level request with one retry on transient errors -----------------
 
     async def _request(
         self,
         method: str,
-        endpoint: str,
-        **kwargs: Any,
-    ) -> Any:
-        """Make an authenticated request to the Homebox API.
-
-        Args:
-            method: HTTP method (GET, POST, PUT, DELETE).
-            endpoint: API endpoint (without base URL).
-            **kwargs: Additional arguments to pass to httpx.
-
-        Returns:
-            JSON response data.
-        """
-        await self._ensure_authenticated()
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: Any | None = None,
+    ) -> httpx.Response:
         client = await self._get_client()
+        last_exc: Exception | None = None
 
-        url = f"{self.base_url}{endpoint}"
-        headers = self._get_headers()
+        for attempt in range(2):  # initial + 1 retry
+            try:
+                resp = await client.request(
+                    method, path, params=params, json=json
+                )
+                if resp.status_code in _TRANSIENT_STATUS_CODES and attempt == 0:
+                    logger.warning(
+                        "Transient %s on %s %s, retrying",
+                        resp.status_code,
+                        method,
+                        path,
+                    )
+                    continue
+                resp.raise_for_status()
+                return resp
+            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                last_exc = exc
+                if attempt == 0:
+                    logger.warning(
+                        "Connection error on %s %s, retrying: %s",
+                        method,
+                        path,
+                        exc,
+                    )
+                    # Force a fresh connection on retry.
+                    await self.close()
+                    client = await self._get_client()
+                    continue
+                raise
+        # Should not be reached, but satisfy the type checker.
+        raise last_exc  # type: ignore[misc]
 
-        response = await client.request(method, url, headers=headers, **kwargs)
+    async def _get(self, path: str, **kwargs: Any) -> Any:
+        resp = await self._request("GET", path, **kwargs)
+        return resp.json()
 
-        # Handle authentication errors
-        if response.status_code == 401:
-            logger.error("Authentication failed. Please check your Homebox API token.")
-            raise ValueError("Invalid or expired Homebox API token. Please generate a new token in Homebox settings.")
+    async def _post(self, path: str, **kwargs: Any) -> Any:
+        resp = await self._request("POST", path, **kwargs)
+        return resp.json()
 
-        response.raise_for_status()
+    async def _put(self, path: str, **kwargs: Any) -> Any:
+        resp = await self._request("PUT", path, **kwargs)
+        return resp.json()
 
-        if response.status_code == 204:
-            return None
+    async def _delete(self, path: str) -> None:
+        await self._request("DELETE", path)
 
-        return response.json()
+    # -- paginated GET --------------------------------------------------------
 
-    # =========================================================================
-    # Locations
-    # =========================================================================
+    async def _get_paginated(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch all pages from a paginated Homebox endpoint."""
+        all_items: list[dict[str, Any]] = []
+        page = 1
+        params = dict(params or {})
+
+        while True:
+            params["page"] = page
+            params["pageSize"] = _MAX_PAGE_SIZE
+            resp = await self._request("GET", path, params=params)
+            body = resp.json()
+
+            items = body.get("items", [])
+            all_items.extend(items)
+
+            total = body.get("total", len(all_items))
+            if len(all_items) >= total or len(items) < _MAX_PAGE_SIZE:
+                break
+            page += 1
+
+        return all_items
+
+    # -- locations ------------------------------------------------------------
 
     async def get_locations(self) -> list[dict[str, Any]]:
-        """Get all locations.
-
-        Returns:
-            List of location objects.
-        """
-        return await self._request("GET", "/locations")
+        """Return all locations (flat list)."""
+        return await self._get("/locations")
 
     async def get_location(self, location_id: str) -> dict[str, Any]:
-        """Get a specific location by ID.
+        """Return a single location with its items."""
+        return await self._get(f"/locations/{location_id}")
 
-        Args:
-            location_id: The location UUID.
-
-        Returns:
-            Location object.
-        """
-        return await self._request("GET", f"/locations/{location_id}")
-
-    async def create_location(
-        self,
-        name: str,
-        description: str | None = None,
-        parent_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Create a new location.
-
-        Args:
-            name: Location name.
-            description: Optional description.
-            parent_id: Optional parent location ID for hierarchy.
-
-        Returns:
-            Created location object.
-        """
-        data: dict[str, Any] = {"name": name}
-        if description:
-            data["description"] = description
-        if parent_id:
-            data["parentId"] = parent_id
-
-        return await self._request("POST", "/locations", json=data)
+    async def create_location(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new location."""
+        return await self._post("/locations", json=data)
 
     async def update_location(
-        self,
-        location_id: str,
-        name: str | None = None,
-        description: str | None = None,
-        parent_id: str | None = None,
+        self, location_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update a location.
-
-        Args:
-            location_id: The location UUID.
-            name: New name (optional).
-            description: New description (optional).
-            parent_id: New parent location ID (optional).
-
-        Returns:
-            Updated location object.
-        """
-        # Fetch current location to preserve fields not provided.
-        current = await self.get_location(location_id)
-        current_parent_id = (
-            current.get("parent", {}).get("id") if current.get("parent") else None
-        )
-
-        data: dict[str, Any] = {
-            "name": name if name is not None else current.get("name", ""),
-            "description": (
-                description if description is not None else current.get("description", "")
-            ),
-            "parentId": current_parent_id,
-        }
-
-        # If parent_id is explicitly provided, use it (empty string clears parent).
-        if parent_id is not None:
-            data["parentId"] = parent_id or None
-
-        return await self._request("PUT", f"/locations/{location_id}", json=data)
+        """Update an existing location (partial merge)."""
+        return await self._put(f"/locations/{location_id}", json=data)
 
     async def delete_location(self, location_id: str) -> None:
-        """Delete a location.
+        """Delete a location."""
+        await self._delete(f"/locations/{location_id}")
 
-        Args:
-            location_id: The location UUID.
-        """
-        await self._request("DELETE", f"/locations/{location_id}")
-
-    # =========================================================================
-    # Items
-    # =========================================================================
+    # -- items ----------------------------------------------------------------
 
     async def get_items(
         self,
+        *,
         location_id: str | None = None,
         label_id: str | None = None,
         search: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Get items with optional filters.
-
-        Args:
-            location_id: Filter by location ID.
-            label_id: Filter by label ID.
-            search: Search term for name/description.
-
-        Returns:
-            List of item objects.
-        """
-        params: dict[str, str] = {}
+        """Return items with full pagination. Supports optional filters."""
+        params: dict[str, Any] = {}
         if location_id:
             params["locations"] = location_id
         if label_id:
             params["labels"] = label_id
         if search:
             params["q"] = search
-
-        response = await self._request("GET", "/items", params=params)
-
-        # The API returns {"items": [...]} wrapper
-        if isinstance(response, dict) and "items" in response:
-            return response["items"]
-        return response
+        return await self._get_paginated("/items", params=params)
 
     async def get_item(self, item_id: str) -> dict[str, Any]:
-        """Get a specific item by ID.
+        """Return the full detail for a single item."""
+        return await self._get(f"/items/{item_id}")
 
-        Args:
-            item_id: The item UUID.
-
-        Returns:
-            Item object with full details.
-        """
-        return await self._request("GET", f"/items/{item_id}")
-
-    async def create_item(
-        self,
-        name: str,
-        location_id: str,
-        description: str | None = None,
-        quantity: int = 1,
-        labels: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Create a new item.
-
-        Args:
-            name: Item name.
-            location_id: Location ID where the item will be stored.
-            description: Optional description.
-            quantity: Item quantity (default: 1).
-            labels: Optional list of label IDs.
-
-        Returns:
-            Created item object.
-        """
-        data: dict[str, Any] = {
-            "name": name,
-            "locationId": location_id,
-            "quantity": quantity,
-        }
-        if description:
-            data["description"] = description
-        if labels:
-            data["labelIds"] = labels
-
-        return await self._request("POST", "/items", json=data)
+    async def create_item(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new item."""
+        return await self._post("/items", json=data)
 
     async def update_item(
-        self,
-        item_id: str,
-        name: str | None = None,
-        description: str | None = None,
-        quantity: int | None = None,
-        location_id: str | None = None,
-        labels: list[str] | None = None,
-        insured: bool | None = None,
-        archived: bool | None = None,
-        asset_id: str | None = None,
-        serial_number: str | None = None,
-        model_number: str | None = None,
-        manufacturer: str | None = None,
-        purchase_price: float | None = None,
-        notes: str | None = None,
+        self, item_id: str, updates: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update an item.
+        """GET-then-PUT update that preserves all existing fields.
 
-        Args:
-            item_id: The item UUID.
-            name: New name (optional).
-            description: New description (optional).
-            quantity: New quantity (optional).
-            location_id: New location ID (optional).
-            labels: New list of label IDs (optional).
-            insured: Insurance status (optional).
-            archived: Archive status (optional).
-            asset_id: Asset ID (optional).
-            serial_number: Serial number (optional).
-            model_number: Model number (optional).
-            manufacturer: Manufacturer (optional).
-            purchase_price: Purchase price (optional).
-            notes: Notes (optional).
-
-        Returns:
-            Updated item object.
+        Only the keys present in *updates* are overwritten; every other
+        field is kept as-is so nothing is accidentally blanked out.
         """
-        # First get the current item to preserve existing values
-        current = await self.get_item(item_id)
-
-        data: dict[str, Any] = {
-            "id": item_id,
-            "name": name if name is not None else current.get("name", ""),
-            "description": (
-                description if description is not None else current.get("description", "")
-            ),
-            "quantity": quantity if quantity is not None else current.get("quantity", 1),
-            "locationId": (
-                location_id
-                if location_id is not None
-                else current.get("location", {}).get("id", "")
-            ),
-        }
-
-        # Handle labels
-        if labels is not None:
-            data["labelIds"] = labels
-        elif current.get("labels"):
-            data["labelIds"] = [label["id"] for label in current["labels"]]
-
-        # Optional fields
-        if insured is not None:
-            data["insured"] = insured
-        if archived is not None:
-            data["archived"] = archived
-        if asset_id is not None:
-            data["assetId"] = asset_id
-        if serial_number is not None:
-            data["serialNumber"] = serial_number
-        if model_number is not None:
-            data["modelNumber"] = model_number
-        if manufacturer is not None:
-            data["manufacturer"] = manufacturer
-        if purchase_price is not None:
-            data["purchasePrice"] = purchase_price
-        if notes is not None:
-            data["notes"] = notes
-
-        return await self._request("PUT", f"/items/{item_id}", json=data)
+        existing = await self.get_item(item_id)
+        merged = {**existing, **updates}
+        # Remove read-only / server-managed keys that the API rejects.
+        for key in ("createdAt", "updatedAt", "id"):
+            merged.pop(key, None)
+        return await self._put(f"/items/{item_id}", json=merged)
 
     async def delete_item(self, item_id: str) -> None:
-        """Delete an item.
+        """Delete an item."""
+        await self._delete(f"/items/{item_id}")
 
-        Args:
-            item_id: The item UUID.
-        """
-        await self._request("DELETE", f"/items/{item_id}")
+    async def move_item(
+        self, item_id: str, location_id: str
+    ) -> dict[str, Any]:
+        """Move an item to a different location via update."""
+        return await self.update_item(
+            item_id, {"location": {"id": location_id}}
+        )
 
-    async def move_item(self, item_id: str, location_id: str) -> dict[str, Any]:
-        """Move an item to a different location.
+    # -- search ---------------------------------------------------------------
 
-        Args:
-            item_id: The item UUID.
-            location_id: The new location UUID.
+    async def search_items(self, query: str) -> list[dict[str, Any]]:
+        """Full-text search using Homebox's q parameter."""
+        return await self._get_paginated("/items", params={"q": query})
 
-        Returns:
-            Updated item object.
-        """
-        return await self.update_item(item_id, location_id=location_id)
-
-    # =========================================================================
-    # Labels
-    # =========================================================================
+    # -- labels ---------------------------------------------------------------
 
     async def get_labels(self) -> list[dict[str, Any]]:
-        """Get all labels.
+        """Return all labels."""
+        return await self._get("/labels")
 
-        Returns:
-            List of label objects.
-        """
-        return await self._request("GET", "/labels")
-
-    async def get_label(self, label_id: str) -> dict[str, Any]:
-        """Get a specific label by ID.
-
-        Args:
-            label_id: The label UUID.
-
-        Returns:
-            Label object.
-        """
-        return await self._request("GET", f"/labels/{label_id}")
-
-    async def create_label(
-        self,
-        name: str,
-        description: str | None = None,
-        color: str | None = None,
-    ) -> dict[str, Any]:
-        """Create a new label.
-
-        Args:
-            name: Label name.
-            description: Optional description.
-            color: Optional color (hex code).
-
-        Returns:
-            Created label object.
-        """
-        data: dict[str, Any] = {"name": name}
-        if description:
-            data["description"] = description
-        if color:
-            data["color"] = color
-
-        return await self._request("POST", "/labels", json=data)
+    async def create_label(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new label."""
+        return await self._post("/labels", json=data)
 
     async def update_label(
-        self,
-        label_id: str,
-        name: str | None = None,
-        description: str | None = None,
-        color: str | None = None,
+        self, label_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update a label.
-
-        Args:
-            label_id: The label UUID.
-            name: New name (optional).
-            description: New description (optional).
-            color: New color (optional).
-
-        Returns:
-            Updated label object.
-        """
-        data: dict[str, Any] = {}
-        if name is not None:
-            data["name"] = name
-        if description is not None:
-            data["description"] = description
-        if color is not None:
-            data["color"] = color
-
-        return await self._request("PUT", f"/labels/{label_id}", json=data)
+        """Update an existing label."""
+        return await self._put(f"/labels/{label_id}", json=data)
 
     async def delete_label(self, label_id: str) -> None:
-        """Delete a label.
+        """Delete a label."""
+        await self._delete(f"/labels/{label_id}")
 
-        Args:
-            label_id: The label UUID.
-        """
-        await self._request("DELETE", f"/labels/{label_id}")
-
-    # =========================================================================
-    # Statistics
-    # =========================================================================
+    # -- statistics -----------------------------------------------------------
 
     async def get_statistics(self) -> dict[str, Any]:
-        """Get inventory statistics.
+        """Return Homebox group statistics."""
+        return await self._get("/groups/statistics")
 
-        Returns:
-            Statistics object with counts and totals.
-        """
-        return await self._request("GET", "/groups/statistics")
+
+client = HomeboxClient()
