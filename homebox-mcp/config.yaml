@@ -9,7 +9,7 @@ arch:
   - amd64
   - aarch64
 ports:
-  8099/tcp: 8099
+  8099/tcp: 8100
 ports_description:
   8099/tcp: "MCP Server SSE endpoint"
 ingress: true
