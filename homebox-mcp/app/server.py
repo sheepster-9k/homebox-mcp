@@ -97,7 +97,7 @@ _DASHBOARD_HTML = """\
   <h1>Homebox MCP Server</h1>
   <p class="ok">Status: running</p>
   <p>Auth required: <code>{auth_enabled}</code></p>
-  <p><a href="/login">Get Homebox API Token</a></p>
+  <p><a href="login">Get Homebox API Token</a></p>
   <p class="muted">Connect an MCP client to this server's SSE endpoint.</p>
 </body>
 </html>
@@ -167,7 +167,7 @@ _LOGIN_HTML = """\
   </form>
 
   <div id="result" style="display:none"></div>
-  <a class="back" href="/">&larr; Back to dashboard</a>
+  <a class="back" href="./">&larr; Back to dashboard</a>
 
   <script>
     document.getElementById('loginForm').addEventListener('submit', async (e) => {{
@@ -179,7 +179,7 @@ _LOGIN_HTML = """\
       const password = document.getElementById('password').value;
 
       try {{
-        const resp = await fetch('/api/login', {{
+        const resp = await fetch('api/login', {{
           method: 'POST',
           headers: {{'Content-Type': 'application/json'}},
           body: JSON.stringify({{ username, password }})
