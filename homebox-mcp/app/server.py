@@ -330,7 +330,7 @@ async def shutdown() -> None:
 
 def create_app() -> Starlette:
     """Build the Starlette app with MCP mounted at root."""
-    mcp_app = mcp.sse_app()
+    mcp_app = mcp.http_app(transport="sse")
 
     routes = [
         Route("/", dashboard),
